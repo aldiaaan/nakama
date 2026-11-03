@@ -6,5 +6,11 @@
   "author": "aldiaaan <62921668+aldiaaan@users.noreply.github.com>",
   "license": "GPL-3.0",
   "private": true,
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "concurrently -n desktop \"pnpm --filter nakama-desktop tauri dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
 }
