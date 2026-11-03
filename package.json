@@ -1,0 +1,10 @@
+{
+  "name": "nakama",
+  "version": "0.0.1",
+  "description": "",
+  "keywords": [],
+  "author": "aldiaaan <62921668+aldiaaan@users.noreply.github.com>",
+  "license": "GPL-3.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0"
+}
