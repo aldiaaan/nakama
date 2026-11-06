@@ -8,7 +8,7 @@ If you change code under `packages/*` or `apps/*`, include a scope that matches 
 
 ## License header
 
-Rust, TypeScript, JavaScript, Python, and React source files must start with this license header:
+Rust, TypeScript, JavaScript, Python, and React source files must start with this license header (make sure you added the empty blank line after header):
 
 ```
 // nakama
