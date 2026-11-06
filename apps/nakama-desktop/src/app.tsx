@@ -1,5 +1,4 @@
-import "./app.css";
-
+import './app.css';
 import {
   Button,
   Popover,
@@ -8,7 +7,7 @@ import {
   PopoverHeader,
   PopoverTitle,
   PopoverTrigger,
-} from "@nakama/ui/components";
+} from '@nakama/ui/components';
 
 export function App() {
   return (
@@ -18,9 +17,7 @@ export function App() {
         <PopoverContent>
           <PopoverHeader>
             <PopoverTitle>Popover</PopoverTitle>
-            <PopoverDescription>
-              This opens from the button.
-            </PopoverDescription>
+            <PopoverDescription>This opens from the button.</PopoverDescription>
           </PopoverHeader>
         </PopoverContent>
       </Popover>

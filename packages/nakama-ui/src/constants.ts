@@ -1,1 +1,1 @@
-export const NAKAMA_UI_VERSION = "0.0.1";
+export const NAKAMA_UI_VERSION = '0.0.1';

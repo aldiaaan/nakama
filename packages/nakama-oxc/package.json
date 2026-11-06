@@ -1,0 +1,18 @@
+{
+    "name": "@nakama/oxc",
+    "version": "0.0.1",
+    "private": true,
+    "description": "OXC configs for Nakama",
+    "license": "GPL-3.0",
+    "author": "aldiaaan",
+    "type": "module",
+    "exports": {
+        "./base": "./src/base.ts",
+        "./react": "./src/react.ts",
+        "./fmt": "./src/fmt.ts"
+    },
+    "dependencies": {
+        "oxfmt": "^0.76.0",
+        "oxlint": "^1.91.0"
+    }
+}
