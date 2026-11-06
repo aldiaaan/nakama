@@ -1,5 +1,9 @@
 # Agent instructions
 
+## Do not
+
+- Capture the whole desktop. I'll take the screenshot and send it to you.
+
 ## Commits
 
 Use a [Conventional Commits](https://www.conventionalcommits.org/)-style prefix on every commit (for example `feat:`, `fix:`, `chore:`).
