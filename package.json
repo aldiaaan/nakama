@@ -8,9 +8,11 @@
   "private": true,
   "packageManager": "pnpm@12.18.0",
   "scripts": {
-    "dev": "concurrently -n desktop \"pnpm --filter nakama-desktop tauri dev\""
+    "dev": "concurrently -n desktop \"pnpm --filter nakama-desktop tauri dev\"",
+    "changeset": "changeset"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "concurrently": "^10.0.6"
   }
 }
