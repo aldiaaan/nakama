@@ -24,9 +24,10 @@ Do not add a `package.json` under `apps/nakama-desktop/src-tauri`. The desktop a
 
 Do not comment every line. Add comments only when the code is non-obvious, temporarily hacky, or needs short context for later readers.
 
-## Code guidelines
+## TypeScript code guidelines
 
 - **Exports:** Use a named export. Use a default export only when a library requires it, including a module that only loads through a dynamic import.
+- **Barrels:** Do not re-export a folder through an `index.ts`. Import the file that defines the symbol. A package entry, such as `packages/nakama-api/src/index.ts`, is the one exception.
 - **Types:** Prefer `type` over `interface`.
 - **Components:** A React component exports its props type and a named function:
 
