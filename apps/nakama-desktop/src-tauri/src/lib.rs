@@ -14,17 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+mod error;
+
+use nakama_device_info::DeviceInfo;
+
+pub use error::CommandError;
+
+/// Read the host CPU, memory, and GPU, print the snapshot, and return it to the webview.
 #[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+async fn device_info() -> Result<DeviceInfo, CommandError> {
+    let info = tauri::async_runtime::spawn_blocking(nakama_device_info::device_info)
+        .await
+        .map_err(|error| CommandError::Internal(error.to_string()))??;
+    println!("{info}");
+    Ok(info)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![device_info])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
 }

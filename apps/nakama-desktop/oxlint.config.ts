@@ -21,5 +21,6 @@ export default defineConfig({
     '.moon/*',
     '.temp/*',
     'src-tauri/target/**',
+    'src/routeTree.gen.ts',
   ],
 });

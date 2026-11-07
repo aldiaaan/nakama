@@ -17,6 +17,8 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-fn main() {
-    nakama_desktop_lib::run()
+use anyhow::Context;
+
+fn main() -> anyhow::Result<()> {
+    nakama_desktop_lib::run().context("failed to run the Tauri application")
 }

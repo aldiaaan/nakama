@@ -1,0 +1,13 @@
+[package]
+name = "nakama-device-info"
+version = "0.1.0"
+description = "CPU, memory, and GPU snapshot for Nakama"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+sysinfo = { version = "0.40", features = ["gpu"] }
+thiserror = { workspace = true }

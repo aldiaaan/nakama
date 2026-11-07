@@ -12,7 +12,10 @@
         "lint:fix": "oxlint --fix"
     },
     "dependencies": {
+        "@nakama/api": "workspace:*",
         "@nakama/ui": "workspace:*",
+        "@tanstack/react-query": "^5.106.1",
+        "@tanstack/react-router": "^1.170.46",
         "@tauri-apps/api": "^2",
         "@tauri-apps/plugin-opener": "^2",
         "react": "^19.1.0",
@@ -21,6 +24,7 @@
     "devDependencies": {
         "@nakama/oxc": "workspace:*",
         "@tailwindcss/vite": "^4.3.4",
+        "@tanstack/router-plugin": "^1.168.48",
         "@tauri-apps/cli": "^2",
         "@types/react": "^19.1.8",
         "@types/react-dom": "^19.1.6",

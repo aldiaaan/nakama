@@ -13,13 +13,24 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+import { NakamaProvider } from '@nakama/api';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider } from '@tanstack/react-router';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-import { App } from './app';
+import './app.css';
+import { router } from './router';
+
+const queryClient = new QueryClient();
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <QueryClientProvider client={queryClient}>
+      <NakamaProvider>
+        <RouterProvider router={router} />
+      </NakamaProvider>
+    </QueryClientProvider>
   </React.StrictMode>
 );

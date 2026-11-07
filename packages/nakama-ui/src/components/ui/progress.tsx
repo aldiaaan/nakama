@@ -2,6 +2,7 @@
 
 import { Progress as ProgressPrimitive } from '@base-ui/react/progress';
 import { cn } from 'cn';
+import { motion, useReducedMotion } from 'motion/react';
 
 function Progress({ className, children, value, ...props }: ProgressPrimitive.Root.Props) {
   return (
@@ -29,11 +30,40 @@ function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
   );
 }
 
-function ProgressIndicator({ className, ...props }: ProgressPrimitive.Indicator.Props) {
+function ProgressIndicator({ className, render, ...props }: ProgressPrimitive.Indicator.Props) {
+  const reduceMotion = useReducedMotion();
   return (
     <ProgressPrimitive.Indicator
       data-slot="progress-indicator"
-      className={cn('h-full bg-primary transition-all', className)}
+      className={cn('h-full bg-primary', className)}
+      render={
+        render ??
+        ((elementProps) => {
+          // Motion redefines these DOM handlers, so they are not forwarded.
+          const {
+            style,
+            onDrag: _onDrag,
+            onDragStart: _onDragStart,
+            onDragEnd: _onDragEnd,
+            onAnimationStart: _onAnimationStart,
+            onAnimationEnd: _onAnimationEnd,
+            ...elementRest
+          } = elementProps;
+          if (style?.width == null) {
+            return <motion.div {...elementRest} style={style} />;
+          }
+          const { width, ...restStyle } = style;
+          return (
+            <motion.div
+              {...elementRest}
+              style={restStyle}
+              initial={{ width: '0%' }}
+              animate={{ width }}
+              transition={reduceMotion ? { duration: 0 } : { duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            />
+          );
+        })
+      }
       {...props}
     />
   );
