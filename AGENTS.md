@@ -8,7 +8,17 @@
 
 Use a [Conventional Commits](https://www.conventionalcommits.org/)-style prefix on every commit (for example `feat:`, `fix:`, `chore:`).
 
-If you change code under `packages/*` or `apps/*`, include a scope that matches the area you touched (for example `feat(nakama-ui)`).
+If you change code under `packages/*`, `apps/*`, or `crates/*`, include a scope that matches the area you touched (for example `feat(nakama-device-info)`).
+
+## Versions
+
+Changesets is how package versions move. Do not edit a `version` field by hand in `package.json` or in a crate's `[package]` table.
+
+Record a change with `pnpm changeset`. Apply bumps with `pnpm version-packages`. That command updates `package.json`, writes `CHANGELOG.md`, and copies the version into `Cargo.toml`.
+
+Every library crate under `crates/*` has a private `package.json`. `name` and `version` match that crate's `Cargo.toml`. Add this file in the same change as a new crate. `publish` in `Cargo.toml` stays false.
+
+Do not add a `package.json` under `apps/nakama-desktop/src-tauri`. The desktop app package is the version for that shell.
 
 ## Comments
 
