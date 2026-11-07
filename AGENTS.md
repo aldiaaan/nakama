@@ -24,6 +24,24 @@ Do not add a `package.json` under `apps/nakama-desktop/src-tauri`. The desktop a
 
 Do not comment every line. Add comments only when the code is non-obvious, temporarily hacky, or needs short context for later readers.
 
+## TypeScript
+
+Use a named export. Use a default export only when a library requires it, including a module that only loads through a dynamic import.
+
+Prefer `type` over `interface`.
+
+A React component exports its props type and a named function:
+
+```tsx
+export type SettingsProviderProps = {
+  children: React.ReactNode;
+};
+
+export function SettingsProvider({ children }: SettingsProviderProps) {
+  return <div>{children}</div>;
+}
+```
+
 ## UI guidelines
 
 - **Progress bars:** Use an enter animation, or once the value is known, animate from `0` to that value instead of jumping instantly.
