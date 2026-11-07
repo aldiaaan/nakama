@@ -2063,6 +2063,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "nakama-device-info",
+ "nakama-settings",
  "serde",
  "serde_json",
  "tauri",
@@ -2077,6 +2078,14 @@ version = "0.0.1"
 dependencies = [
  "serde",
  "sysinfo",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "nakama-settings"
+version = "0.0.1"
+dependencies = [
+ "serde",
  "thiserror 2.0.21",
 ]
 

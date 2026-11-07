@@ -36,6 +36,8 @@ The app keeps its own `QueryClientProvider`. `NakamaProvider` only shares the AP
 
 `api.device.info()` invokes `device_info` and returns `DeviceInfoView`, the formatted snapshot. `useDeviceInfo` polls that command every 500ms and returns the same view. It must run under `NakamaProvider`.
 
+`api.settings.load()` invokes `load_settings` and returns `SettingsView`. `api.settings.save(theme)` invokes `save_settings` and returns the same view. `useLoadSettings` reads the file once. `useSaveSettings` writes it and updates that query. Both must run under `NakamaProvider`.
+
 ## Formatting
 
 Display logic lives here. An app renders the strings and numbers this package already prepared.
@@ -51,6 +53,12 @@ Display logic lives here. An app renders the strings and numbers this package al
 - GPU detail renders as `{vendor or "Unknown vendor"} · {pci}`.
 - GPU memory renders as `{used} / {total}` when both exist, `{total}` when only the total exists, and `Shared or unavailable` otherwise.
 - A query error is a `NakamaError`. Its message is the IPC string, and its type is the Rust tag. A bare string from Rust uses the type `Unknown`. `formatApiError` renders that message. Anything else thrown renders with `String`.
+
+`SettingsResource` applies these rules when it formats settings:
+
+- Theme is `light` or `dark`. The label is `Light` or `Dark`. A theme outside those two renders as the raw value.
+- `path` is the `config.ini` path the Rust command already resolved.
+- `useLoadSettings` uses `Reading config.ini…` while the file is loading. `useSaveSettings` uses `Saving config.ini…` while the write is in flight.
 
 ## Scripts
 

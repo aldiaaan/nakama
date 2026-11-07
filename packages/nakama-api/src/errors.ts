@@ -1,4 +1,7 @@
-export type CommandError = { type: 'DeviceInfo'; message: string } | { type: 'Internal'; message: string };
+export type CommandError =
+  | { type: 'DeviceInfo'; message: string }
+  | { type: 'Settings'; message: string }
+  | { type: 'Internal'; message: string };
 
 export class NakamaError extends Error {
   public type: string;

@@ -1,4 +1,5 @@
 use nakama_device_info::DeviceInfoError;
+use nakama_settings::SettingsError;
 use serde::Serialize;
 use thiserror::Error;
 
@@ -9,11 +10,20 @@ pub enum CommandError {
     DeviceInfo(String),
 
     #[error("{0}")]
+    Settings(String),
+
+    #[error("{0}")]
     Internal(String),
 }
 
 impl From<DeviceInfoError> for CommandError {
     fn from(err: DeviceInfoError) -> Self {
         CommandError::DeviceInfo(err.to_string())
+    }
+}
+
+impl From<SettingsError> for CommandError {
+    fn from(err: SettingsError) -> Self {
+        CommandError::Settings(err.to_string())
     }
 }

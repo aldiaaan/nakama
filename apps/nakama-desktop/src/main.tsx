@@ -20,6 +20,8 @@ import { RouterProvider } from '@tanstack/react-router';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
+import { SettingsProvider } from './features/settings/components/settings-provider';
+
 import './app.css';
 import { router } from './router';
 
@@ -29,7 +31,9 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <NakamaProvider>
-        <RouterProvider router={router} />
+        <SettingsProvider>
+          <RouterProvider router={router} />
+        </SettingsProvider>
       </NakamaProvider>
     </QueryClientProvider>
   </React.StrictMode>

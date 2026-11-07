@@ -1,0 +1,12 @@
+[package]
+name = "nakama-settings"
+version = "0.0.1"
+description = "config.ini settings for Nakama"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = { workspace = true }

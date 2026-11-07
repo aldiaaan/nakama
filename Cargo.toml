@@ -1,6 +1,10 @@
 [workspace]
 resolver = "3"
-members = ["apps/nakama-desktop/src-tauri", "crates/nakama-device-info"]
+members = [
+    "apps/nakama-desktop/src-tauri",
+    "crates/nakama-device-info",
+    "crates/nakama-settings",
+]
 
 [workspace.package]
 edition = "2024"
