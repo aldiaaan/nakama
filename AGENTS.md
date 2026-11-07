@@ -29,6 +29,31 @@ Do not comment every line. Add comments only when the code is non-obvious, tempo
 - **Exports:** Use a named export. Use a default export only when a library requires it, including a module that only loads through a dynamic import.
 - **Barrels:** Do not re-export a folder through an `index.ts`. Import the file that defines the symbol. A package entry, such as `packages/nakama-api/src/index.ts`, is the one exception.
 - **Types:** Prefer `type` over `interface`.
+- **Composition:** Build a component as compound parts, in the Radix style, whenever it has more than one slot. Export one object and let the caller assemble the parts, such as `Root`, `Header`, `Title`, and `Item`. Do not collapse those slots into props on a single component. A preference is the example:
+
+  ```tsx
+  <PreferenceCard.Root>
+    <PreferenceCard.Header>
+      <PreferenceCard.Title>Appearance</PreferenceCard.Title>
+      <PreferenceCard.Description>Saved to config.ini in the app config folder.</PreferenceCard.Description>
+    </PreferenceCard.Header>
+    <PreferenceCard.Content>
+      <PreferenceTile.Group value={theme} onValueChange={selectTheme}>
+        <PreferenceTile.Item value="light">
+          <PreferenceTile.Indicator />
+          <PreferenceTile.Content>
+            <PreferenceTile.Title>Light</PreferenceTile.Title>
+            <PreferenceTile.Description>Bright surfaces</PreferenceTile.Description>
+          </PreferenceTile.Content>
+        </PreferenceTile.Item>
+      </PreferenceTile.Group>
+    </PreferenceCard.Content>
+    <PreferenceCard.Footer>
+      <PreferenceCard.Error>{errorMessage}</PreferenceCard.Error>
+    </PreferenceCard.Footer>
+  </PreferenceCard.Root>
+  ```
+
 - **Components:** A React component exports its props type and a named function:
 
   ```tsx
