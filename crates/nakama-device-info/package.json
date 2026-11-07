@@ -1,0 +1,6 @@
+{
+  "name": "nakama-device-info",
+  "version": "0.0.1",
+  "private": true,
+  "description": "CPU, memory, and GPU snapshot for Nakama"
+}
