@@ -27,6 +27,20 @@ Do not comment every line. Add comments only when the code is non-obvious, tempo
 ## UI guidelines
 
 - **Progress bars:** Use an enter animation, or once the value is known, animate from `0` to that value instead of jumping instantly.
+- **Forms:** Use `react-hook-form` for every form. Do not keep field values, validation, or submit state in `useState`.
+- **Async state:** Use React Query (`@tanstack/react-query`) for loading, error, and success. Do not track those with `useState` and `useEffect`. Command hooks stay in `@nakama/api`; an app calls those hooks and renders the result.
+- **Overlays:** A modal, menu, dropdown, dialog, popover, or sheet takes its trigger as a child and owns the open state.
+
+  ```tsx
+  <RegistrationModal>
+    <RegisterButton />
+  </RegistrationModal>
+  ```
+
+  Compose that trigger with Base UI's `render` prop. Do not control it with `open={state}` unless it is really, really necessary.
+- **File layout:** A component, hook, or util used by one feature lives under `apps/<app>/src/features/<feature>/` in `components`, `hooks`, or `utils`. One used by more than one feature in that app lives under `apps/<app>/src/shared/` in the same three folders. A reusable control, hook, or util lives in `@nakama/ui` (`src/components`, `src/hooks`, `src/utils`). A command hook or a formatter for a command result lives in `@nakama/api`. A route file only composes these. Do not put feature UI in `routes/`.
+- **Context:** Pass props through components. Use React context only when that prop passes through more than three components.
+- **Dumb UI:** Components in `packages/nakama-ui/src/components/ui` are dumb. They take props and render. They do not fetch data, call `@nakama/api`, or own feature logic.
 
 ## Rust API
 
@@ -36,7 +50,7 @@ Keep each command's argument and result types in `@nakama/api`.
 
 Add each command as a resource method on `NakamaApi`. When a command does async work, add a React Query hook in `packages/nakama-api/src/hooks`. The hook calls `useNakama()` and then that resource method.
 
-Format command results in `@nakama/api`. Apps render the strings and numbers that package already prepared. Do not format bytes, percents, labels, fallbacks, or other display logic in an app. The rules for the current commands are in `packages/nakama-api/README.md`.
+Prepare logic and formatting for a command in `@nakama/api`. An app renders the strings and numbers that package already prepared. Do not format bytes, percents, labels, or fallbacks in an app, and do not derive those values there, unless it is really, really necessary. The rules for the current commands are in `packages/nakama-api/README.md`.
 
 ## Rust errors
 
