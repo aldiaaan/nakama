@@ -55,17 +55,112 @@ Do not comment every line. Add comments only when the code is non-obvious, tempo
   Compose that trigger with Base UI's `render` prop. Do not control it with `open={state}` unless it is really, really necessary.
 - **File layout:** A component, hook, or util used by one feature lives under `apps/<app>/src/features/<feature>/` in `components`, `hooks`, or `utils`. One used by more than one feature in that app lives under `apps/<app>/src/shared/` in the same three folders. A reusable control, hook, or util lives in `@nakama/ui` (`src/components`, `src/hooks`, `src/utils`). A command hook or a formatter for a command result lives in `@nakama/api`. A route file only composes these. Do not put feature UI in `routes/`.
 - **Context:** Pass props through components. Use React context only when that prop passes through more than three components.
+- **Zustand:** A store is scoped to its provider. Create it with `createStore` from `zustand/vanilla` inside that provider, and pass the `StoreApi` through context. Do not call `create` from `zustand` at module scope. A component outside the provider cannot read the store.
+
+  `useSettingsApi` returns the store and does not subscribe. Use it for a fire-and-forget read or write (`getState`, `setState`). `useSettings` subscribes through a selector and `shallow`. Use it when the component renders store state. Settings is the example:
+
+  ```tsx
+  import { useLoadSettings, type SettingsTheme } from '@nakama/api';
+  import { createContext, useEffect, useRef, useState } from 'react';
+  import { createStore, type StoreApi } from 'zustand/vanilla';
+
+  export type SettingsProviderProps = {
+    children: React.ReactNode;
+  };
+
+  type SettingsState = {
+    theme: SettingsTheme;
+    path: string;
+  };
+
+  export type SettingsStore = SettingsState;
+
+  export const SettingsContext = createContext<StoreApi<SettingsStore> | null>(null);
+
+  export function SettingsProvider({ children }: SettingsProviderProps) {
+    const loaded = useLoadSettings();
+    const [store] = useState(() =>
+      createStore<SettingsStore>()(() => ({
+        theme: 'light',
+        path: '',
+      }))
+    );
+    const hydrated = useRef(false);
+
+    useEffect(() => {
+      if (!loaded.data || hydrated.current) {
+        return;
+      }
+      hydrated.current = true;
+      store.setState({ theme: loaded.data.theme, path: loaded.data.path });
+    }, [loaded.data, store]);
+
+    useEffect(() => {
+      const apply = () => {
+        document.documentElement.classList.toggle('dark', store.getState().theme === 'dark');
+      };
+      apply();
+      return store.subscribe(apply);
+    }, [store]);
+
+    return <SettingsContext.Provider value={store}>{children}</SettingsContext.Provider>;
+  }
+  ```
+
+  ```ts
+  import { useContext } from 'react';
+
+  import { SettingsContext } from '../components/settings-provider';
+
+  export function useSettingsApi() {
+    const store = useContext(SettingsContext);
+    if (!store) {
+      throw new Error('Settings context not found');
+    }
+    return store;
+  }
+  ```
+
+  ```ts
+  import { shallow } from 'zustand/shallow';
+  import { useStoreWithEqualityFn } from 'zustand/traditional';
+
+  import type { SettingsStore } from '../components/settings-provider';
+  import { useSettingsApi } from './use-settings-api';
+
+  export function useSettings(): SettingsStore;
+  export function useSettings<T>(selector: (state: SettingsStore) => T): T;
+  export function useSettings<T>(selector?: (state: SettingsStore) => T) {
+    const store = useSettingsApi();
+    return useStoreWithEqualityFn(store, selector ?? ((state) => state as T), shallow);
+  }
+  ```
 - **Dumb UI:** Components in `packages/nakama-ui/src/components/ui` are dumb. They take props and render. They do not fetch data, call `@nakama/api`, or own feature logic.
 
 ## Rust API
 
-Call Rust commands only through `@nakama/api`. Do not use Tauri `invoke` from an app or another package.
+`@nakama/api` is resource based. `NakamaApi` is the client. Each area is a resource on that client, such as `device` and `settings`.
 
-Keep each command's argument and result types in `@nakama/api`.
+```
+packages/nakama-api/src/
+  api.ts          NakamaApi. The only caller of Tauri invoke.
+  errors.ts       CommandError and NakamaError.
+  index.ts        Package entry.
+  components/     NakamaProvider.
+  hooks/          One React Query file per resource.
+  resources/      One file per resource.
+  utils/          Shared formatters.
+```
 
-Add each command as a resource method on `NakamaApi`. When a command does async work, add a React Query hook in `packages/nakama-api/src/hooks`. The hook calls `useNakama()` and then that resource method.
+A resource file owns that area: the raw command types, the view types an app renders, and the resource class. A method calls `this.api.invoke` and returns the formatted view. Do not return the raw command result to an app.
 
-Prepare logic and formatting for a command in `@nakama/api`. An app renders the strings and numbers that package already prepared. Do not format bytes, percents, labels, or fallbacks in an app, and do not derive those values there, unless it is really, really necessary. The rules for the current commands are in `packages/nakama-api/README.md`.
+A hook file matches its resource. The hook calls `useNakama()` and then the resource method. It prepares `errorMessage` and any status label. An app calls the hook and renders those strings.
+
+`NakamaProvider` shares one client. The app keeps its own `QueryClientProvider`.
+
+Call Rust commands only through this package. Do not use Tauri `invoke` from an app or another package.
+
+Prepare logic and formatting here. An app renders the strings and numbers this package already prepared. Do not format bytes, percents, labels, or fallbacks in an app, and do not derive those values there, unless it is really, really necessary. The rules for the current commands are in `packages/nakama-api/README.md`.
 
 ## Rust errors
 
