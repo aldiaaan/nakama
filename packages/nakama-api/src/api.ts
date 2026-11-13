@@ -1,10 +1,12 @@
 import { invoke, type InvokeArgs } from '@tauri-apps/api/core';
 
 import { type CommandError, NakamaError } from './errors';
+import { DaemonResource } from './resources/daemon';
 import { DeviceResource } from './resources/device';
 import { SettingsResource } from './resources/settings';
 
 export class NakamaApi {
+  readonly daemon = new DaemonResource(this);
   readonly device = new DeviceResource(this);
   readonly settings = new SettingsResource(this);
 
