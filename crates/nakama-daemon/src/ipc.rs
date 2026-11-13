@@ -1,9 +1,14 @@
+use std::error::Error;
 use std::fmt;
+use std::future::Future;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio::io::{
     AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader, ReadHalf,
     WriteHalf,
@@ -52,12 +57,18 @@ impl fmt::Display for IpcEndpoint {
 }
 
 /// One JSON object per line, answered by one `IpcResponse` line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum IpcRequest {
     Status,
     Metrics,
     Shutdown,
+    /// Runs a method registered with `DaemonBuilder::with_ipc_method`.
+    Call {
+        method: String,
+        #[serde(default)]
+        params: Value,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -66,7 +77,24 @@ pub enum IpcResponse {
     Status(StatusReport),
     Metrics { prometheus: String },
     Shutdown { initiated: bool },
+    Reply { value: Value },
     Error { message: String },
+}
+
+type MethodFuture =
+    Pin<Box<dyn Future<Output = Result<Value, Box<dyn Error + Send + Sync>>> + Send>>;
+pub(crate) type IpcMethod = Arc<dyn Fn(DaemonHandle, Value) -> MethodFuture + Send + Sync>;
+
+pub(crate) fn ipc_method<F, Fut, E>(handler: F) -> IpcMethod
+where
+    F: Fn(DaemonHandle, Value) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Result<Value, E>> + Send + 'static,
+    E: Error + Send + Sync + 'static,
+{
+    Arc::new(move |daemon, params| {
+        let reply = handler(daemon, params);
+        Box::pin(async move { reply.await.map_err(Into::into) })
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,6 +174,22 @@ impl IpcClient {
         }
         serde_json::from_str(&line).map_err(DaemonError::IpcResponse)
     }
+
+    /// Calls a method registered with `DaemonBuilder::with_ipc_method` and returns its reply.
+    pub async fn call(&mut self, method: &str, params: Value) -> Result<Value, DaemonError> {
+        let request = IpcRequest::Call {
+            method: method.to_owned(),
+            params,
+        };
+        match self.request(request).await? {
+            IpcResponse::Reply { value } => Ok(value),
+            IpcResponse::Error { message } => Err(DaemonError::IpcMethod {
+                method: method.to_owned(),
+                message,
+            }),
+            _ => Err(DaemonError::UnexpectedIpcResponse),
+        }
+    }
 }
 
 pub(crate) struct IpcServer {
@@ -207,7 +251,7 @@ where
             }
             Ok(_) if line.trim().is_empty() => continue,
             Ok(_) => match serde_json::from_str(&line) {
-                Ok(request) => respond(request, &daemon),
+                Ok(request) => respond(request, &daemon).await,
                 Err(source) => IpcResponse::Error {
                     message: format!("invalid request: {source}"),
                 },
@@ -224,7 +268,7 @@ where
     }
 }
 
-fn respond(request: IpcRequest, daemon: &DaemonHandle) -> IpcResponse {
+async fn respond(request: IpcRequest, daemon: &DaemonHandle) -> IpcResponse {
     match request {
         IpcRequest::Status => IpcResponse::Status(StatusReport::from(&daemon.stats())),
         IpcRequest::Metrics => IpcResponse::Metrics {
@@ -233,6 +277,19 @@ fn respond(request: IpcRequest, daemon: &DaemonHandle) -> IpcResponse {
         IpcRequest::Shutdown => IpcResponse::Shutdown {
             initiated: daemon.shutdown(),
         },
+        IpcRequest::Call { method, params } => {
+            let Some(handler) = daemon.ipc_method(&method) else {
+                return IpcResponse::Error {
+                    message: format!("unknown method: {method}"),
+                };
+            };
+            match handler(daemon.clone(), params).await {
+                Ok(value) => IpcResponse::Reply { value },
+                Err(source) => IpcResponse::Error {
+                    message: source.to_string(),
+                },
+            }
+        }
     }
 }
 
@@ -381,6 +438,29 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<IpcRequest>(r#"{"type":"status"}"#).expect("json"),
             IpcRequest::Status
+        );
+    }
+
+    #[test]
+    fn calls_carry_a_method_and_params() {
+        let request: IpcRequest =
+            serde_json::from_str(r#"{"type":"call","method":"echo","params":{"n":1}}"#)
+                .expect("json");
+        assert_eq!(
+            request,
+            IpcRequest::Call {
+                method: "echo".to_owned(),
+                params: serde_json::json!({ "n": 1 }),
+            }
+        );
+        let request: IpcRequest =
+            serde_json::from_str(r#"{"type":"call","method":"ping"}"#).expect("json");
+        assert_eq!(
+            request,
+            IpcRequest::Call {
+                method: "ping".to_owned(),
+                params: serde_json::Value::Null,
+            }
         );
     }
 

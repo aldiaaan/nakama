@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[cfg(all(feature = "profiling", unix))]
 pub use cpu::CpuProfiler;
@@ -6,7 +6,7 @@ pub use cpu::CpuProfiler;
 pub use heap::{HeapProfiler, HeapProfilerAlloc};
 
 /// Allocations seen since a heap profiler started. All zero without the global allocator.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HeapUsage {
     pub total_bytes: u64,

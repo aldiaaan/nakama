@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::future::Future;
@@ -12,7 +13,7 @@ use tracing::{error, info, warn};
 
 use crate::config::{Config, ShutdownTimeouts};
 use crate::error::DaemonError;
-use crate::ipc::IpcServer;
+use crate::ipc::{self, IpcMethod, IpcServer};
 use crate::metrics::{self, Metrics, MetricsSnapshot};
 use crate::shutdown::{ShutdownHandle, ShutdownReason};
 use crate::signal::{SignalConfig, SignalListener};
@@ -29,6 +30,7 @@ pub struct DaemonBuilder {
     signals: SignalConfig,
     metrics: Metrics,
     subsystems: Vec<Entry>,
+    methods: HashMap<String, IpcMethod>,
 }
 
 /// Controls a daemon from outside `Daemon::run`, before, during, or after it.
@@ -50,6 +52,7 @@ struct Shared {
     shutdown: ShutdownHandle,
     subsystems: Vec<Arc<Entry>>,
     metrics: Metrics,
+    methods: HashMap<String, IpcMethod>,
     started_at: OnceLock<Instant>,
 }
 
@@ -60,6 +63,7 @@ impl Daemon {
             signals: SignalConfig::default(),
             metrics: Metrics::new(),
             subsystems: Vec::new(),
+            methods: HashMap::new(),
         }
     }
 
@@ -164,6 +168,19 @@ impl DaemonBuilder {
         self.with_subsystem(Task::new(name.into(), task))
     }
 
+    /// Answers `{"type":"call","method":<method>,"params":…}` over IPC with `handler`'s value.
+    ///
+    /// An `Err` becomes an IPC error response. Registering a method twice keeps the last handler.
+    pub fn with_ipc_method<F, Fut, E>(mut self, method: impl Into<String>, handler: F) -> Self
+    where
+        F: Fn(DaemonHandle, serde_json::Value) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<serde_json::Value, E>> + Send + 'static,
+        E: Error + Send + Sync + 'static,
+    {
+        self.methods.insert(method.into(), ipc::ipc_method(handler));
+        self
+    }
+
     pub fn build(self) -> Result<Daemon, DaemonError> {
         self.config.validate()?;
         self.metrics.increment_counter(metrics::RESTARTS, 0);
@@ -173,6 +190,7 @@ impl DaemonBuilder {
             shutdown: ShutdownHandle::new(),
             subsystems: self.subsystems.into_iter().map(Arc::new).collect(),
             metrics: self.metrics,
+            methods: self.methods,
             started_at: OnceLock::new(),
         });
         Ok(Daemon {
@@ -237,6 +255,10 @@ impl DaemonHandle {
             snapshot.gauges.insert(name.to_owned(), value);
         }
         snapshot
+    }
+
+    pub(crate) fn ipc_method(&self, method: &str) -> Option<IpcMethod> {
+        self.shared.methods.get(method).cloned()
     }
 }
 
@@ -342,6 +364,7 @@ impl Drop for PidFile {
 mod tests {
     use super::Daemon;
     use crate::config::{Config, ShutdownTimeouts};
+    use crate::error::DaemonError;
     use crate::ipc::{IpcClient, IpcEndpoint, IpcRequest, IpcResponse};
     use crate::metrics::Metrics;
     use crate::shutdown::{ShutdownHandle, ShutdownReason};
@@ -467,12 +490,30 @@ mod tests {
             shutdown.cancelled().await;
             Ok::<_, Infallible>(())
         })
+        .with_ipc_method("double", |daemon, params| async move {
+            let n = params["n"].as_u64().unwrap_or_default();
+            Ok::<_, Infallible>(
+                serde_json::json!({ "doubled": n * 2, "running": daemon.is_running() }),
+            )
+        })
         .build()
         .expect("build");
         let handle = daemon.handle();
         let run = tokio::spawn(daemon.run());
 
         let mut client = connect(&endpoint).await;
+        assert_eq!(
+            client
+                .call("double", serde_json::json!({ "n": 21 }))
+                .await
+                .expect("call"),
+            serde_json::json!({ "doubled": 42, "running": true })
+        );
+        assert!(matches!(
+            client.call("missing", serde_json::Value::Null).await,
+            Err(DaemonError::IpcMethod { method, message })
+                if method == "missing" && message == "unknown method: missing"
+        ));
         let IpcResponse::Status(status) = client.request(IpcRequest::Status).await.expect("status")
         else {
             panic!("expected a status response");

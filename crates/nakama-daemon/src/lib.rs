@@ -16,6 +16,7 @@
 
 mod config;
 mod daemon;
+mod detach;
 mod error;
 mod ipc;
 mod lock;
@@ -27,6 +28,7 @@ mod subsystem;
 
 pub use config::{Config, ShutdownTimeouts};
 pub use daemon::{Daemon, DaemonBuilder, DaemonHandle, DaemonStats};
+pub use detach::{DetachedDaemon, Launch};
 pub use error::DaemonError;
 pub use ipc::{IpcClient, IpcEndpoint, IpcRequest, IpcResponse, StatusReport, SubsystemReport};
 pub use lock::InstanceLock;

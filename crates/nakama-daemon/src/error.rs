@@ -1,5 +1,6 @@
 use std::io;
 use std::path::PathBuf;
+use std::process::ExitStatus;
 use std::time::Duration;
 
 use thiserror::Error;
@@ -84,6 +85,32 @@ pub enum DaemonError {
 
     #[error("daemon sent an invalid IPC response: {0}")]
     IpcResponse(#[source] serde_json::Error),
+
+    #[error("IPC method {method} failed: {message}")]
+    IpcMethod { method: String, message: String },
+
+    #[error("daemon answered an IPC call with the wrong response type")]
+    UnexpectedIpcResponse,
+
+    #[error("failed to open the daemon log at {}: {source}", path.display())]
+    OpenLog {
+        path: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+
+    #[error("failed to start {}: {source}", program.display())]
+    SpawnDetached {
+        program: PathBuf,
+        #[source]
+        source: io::Error,
+    },
+
+    #[error("the detached daemon exited before it answered over IPC ({status})")]
+    DetachedExited { status: ExitStatus },
+
+    #[error("the detached daemon did not answer over IPC within {0:?}")]
+    DetachedStartTimeout(Duration),
 
     #[cfg(all(feature = "profiling", unix))]
     #[error("CPU profiler failed: {0}")]
