@@ -20,7 +20,6 @@ mod error;
 mod ipc;
 mod lock;
 mod metrics;
-#[cfg(any(feature = "profiling", feature = "heap-profiling"))]
 mod profiling;
 mod shutdown;
 mod signal;
@@ -34,6 +33,7 @@ pub use lock::InstanceLock;
 pub use metrics::{Metrics, MetricsSnapshot, Timer, Timing};
 #[cfg(all(feature = "profiling", unix))]
 pub use profiling::CpuProfiler;
+pub use profiling::HeapUsage;
 #[cfg(feature = "heap-profiling")]
 pub use profiling::{HeapProfiler, HeapProfilerAlloc};
 pub use shutdown::{ShutdownHandle, ShutdownReason};

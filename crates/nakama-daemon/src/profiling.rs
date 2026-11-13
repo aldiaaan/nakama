@@ -1,7 +1,21 @@
+use serde::Serialize;
+
 #[cfg(all(feature = "profiling", unix))]
 pub use cpu::CpuProfiler;
 #[cfg(feature = "heap-profiling")]
 pub use heap::{HeapProfiler, HeapProfilerAlloc};
+
+/// Allocations seen since a heap profiler started. All zero without the global allocator.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeapUsage {
+    pub total_bytes: u64,
+    pub total_blocks: u64,
+    pub current_bytes: u64,
+    pub current_blocks: u64,
+    pub max_bytes: u64,
+    pub max_blocks: u64,
+}
 
 #[cfg(all(feature = "profiling", unix))]
 mod cpu {
@@ -48,6 +62,7 @@ mod heap {
     use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
 
+    use super::HeapUsage;
     use crate::error::DaemonError;
 
     pub use dhat::Alloc as HeapProfilerAlloc;
@@ -73,6 +88,18 @@ mod heap {
                 profiler: Some(profiler),
             })
         }
+
+        pub fn usage(&self) -> HeapUsage {
+            let stats = dhat::HeapStats::get();
+            HeapUsage {
+                total_bytes: stats.total_bytes,
+                total_blocks: stats.total_blocks,
+                current_bytes: stats.curr_bytes as u64,
+                current_blocks: stats.curr_blocks as u64,
+                max_bytes: stats.max_bytes as u64,
+                max_blocks: stats.max_blocks as u64,
+            }
+        }
     }
 
     impl Drop for HeapProfiler {
@@ -93,6 +120,7 @@ mod heap {
             let path =
                 std::env::temp_dir().join(format!("nakama-daemon-heap-{}.json", process::id()));
             let profiler = HeapProfiler::start(&path).expect("start");
+            let _ = profiler.usage();
             assert!(matches!(
                 HeapProfiler::start(&path),
                 Err(DaemonError::HeapProfilerRunning)
