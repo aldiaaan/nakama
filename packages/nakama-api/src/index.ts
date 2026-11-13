@@ -12,6 +12,7 @@ export {
   useStopProfiler,
 } from './hooks/use-daemon';
 export { deviceInfoQueryKey, useDeviceInfo } from './hooks/use-device-info';
+export { usePushNotification } from './hooks/use-notification';
 export { settingsQueryKey, useLoadSettings, useSaveSettings } from './hooks/use-settings';
 export { DaemonResource, ipcRequestChoices } from './resources/daemon';
 export type {
@@ -44,6 +45,8 @@ export type {
   TimingReport,
   TimingRowView,
 } from './resources/daemon';
+export { NotificationResource } from './resources/notification';
+export type { NotificationPayload, NotificationView } from './resources/notification';
 export { DeviceResource } from './resources/device';
 export { SettingsResource, themeChoices } from './resources/settings';
 export type {

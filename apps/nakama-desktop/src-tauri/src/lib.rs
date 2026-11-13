@@ -20,10 +20,12 @@ mod error;
 use std::path::PathBuf;
 
 use daemon::{DaemonController, DaemonOverview, IpcExchange, ProfilerKind};
+use error::NotificationError;
 use nakama_daemon::{IpcEndpoint, IpcRequest};
 use nakama_device_info::DeviceInfo;
 use nakama_settings::{Settings, Theme};
 use tauri::{Manager, RunEvent, State};
+use tauri_plugin_notification::{NotificationExt, PermissionState};
 
 pub use error::CommandError;
 
@@ -99,6 +101,42 @@ async fn daemon_stop_profiler(
     Ok(daemon.stop_profiler(kind).await?)
 }
 
+/// Show a notification in the operating system's notification center.
+#[tauri::command]
+fn push_notification(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+) -> Result<(), CommandError> {
+    show_notification(&app, &title, &body)?;
+    Ok(())
+}
+
+fn show_notification(
+    app: &tauri::AppHandle,
+    title: &str,
+    body: &str,
+) -> Result<(), NotificationError> {
+    let title = title.trim();
+    let body = body.trim();
+    if title.is_empty() {
+        return Err(NotificationError::EmptyTitle);
+    }
+    if body.is_empty() {
+        return Err(NotificationError::EmptyBody);
+    }
+
+    let notifications = app.notification();
+    if notifications.permission_state()? != PermissionState::Granted
+        && notifications.request_permission()? != PermissionState::Granted
+    {
+        return Err(NotificationError::PermissionDenied);
+    }
+
+    notifications.builder().title(title).body(body).show()?;
+    Ok(())
+}
+
 fn app_config_dir(app: &tauri::AppHandle) -> Result<PathBuf, CommandError> {
     app.path()
         .app_config_dir()
@@ -108,6 +146,7 @@ fn app_config_dir(app: &tauri::AppHandle) -> Result<PathBuf, CommandError> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let daemon = DaemonController::new(
@@ -126,7 +165,8 @@ pub fn run() -> tauri::Result<()> {
             daemon_start,
             daemon_ipc_request,
             daemon_start_profiler,
-            daemon_stop_profiler
+            daemon_stop_profiler,
+            push_notification
         ])
         .build(tauri::generate_context!())?
         .run(|app, event| {

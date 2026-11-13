@@ -23,6 +23,9 @@ pub enum CommandError {
     Daemon(String),
 
     #[error("{0}")]
+    Notification(String),
+
+    #[error("{0}")]
     Internal(String),
 }
 
@@ -61,6 +64,22 @@ pub enum DaemonControlError {
     Join(#[source] tauri::Error),
 }
 
+/// Showing a notification in the operating system's notification center.
+#[derive(Debug, Error)]
+pub enum NotificationError {
+    #[error("a notification needs a title")]
+    EmptyTitle,
+
+    #[error("a notification needs a body")]
+    EmptyBody,
+
+    #[error("notification permission was denied")]
+    PermissionDenied,
+
+    #[error("failed to show the notification: {0}")]
+    Show(#[from] tauri_plugin_notification::Error),
+}
+
 /// Why an example calculation subsystem exited. The daemon restarts it.
 #[derive(Debug, Error)]
 pub enum WorkloadError {
@@ -90,5 +109,11 @@ impl From<SettingsError> for CommandError {
 impl From<DaemonControlError> for CommandError {
     fn from(err: DaemonControlError) -> Self {
         CommandError::Daemon(err.to_string())
+    }
+}
+
+impl From<NotificationError> for CommandError {
+    fn from(err: NotificationError) -> Self {
+        CommandError::Notification(err.to_string())
     }
 }

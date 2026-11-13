@@ -3,11 +3,13 @@ import { invoke, type InvokeArgs } from '@tauri-apps/api/core';
 import { type CommandError, NakamaError } from './errors';
 import { DaemonResource } from './resources/daemon';
 import { DeviceResource } from './resources/device';
+import { NotificationResource } from './resources/notification';
 import { SettingsResource } from './resources/settings';
 
 export class NakamaApi {
   readonly daemon = new DaemonResource(this);
   readonly device = new DeviceResource(this);
+  readonly notification = new NotificationResource(this);
   readonly settings = new SettingsResource(this);
 
   invoke<T>(command: string, args?: InvokeArgs): Promise<T> {

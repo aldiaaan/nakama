@@ -45,6 +45,7 @@ The daemon resource talks to the example daemon that the desktop app starts in t
 - `api.daemon.sendIpc(type)` invokes `daemon_ipc_request` and returns `IpcExchangeView`, the request and response JSON lines.
 - `api.daemon.startProfiler(kind)` invokes `daemon_start_profiler`. `api.daemon.stopProfiler(kind)` invokes `daemon_stop_profiler`.
 - `useStartDaemon`, `useDaemonIpcRequest`, `useStartProfiler`, and `useStopProfiler` wrap those four. Each refreshes the overview once it settles.
+- `api.notification.push({ title, body })` invokes `push_notification` and returns `NotificationView`. The desktop app shows that title and body in the operating system's notification center. `usePushNotification` wraps the call. It must run under `NakamaProvider`.
 
 ## Formatting
 
@@ -79,6 +80,8 @@ Display logic lives here. An app renders the strings and numbers this package al
 - Each calculation gets a title, an input, and an output line for its kind. The finish time uses the locale's time format.
 - A profiler that the build cannot run reports why: CPU sampling needs Linux or macOS, or the cargo feature is missing. Heap usage renders as `{bytes} in {count} blocks`.
 - IPC request and response lines are pretty-printed JSON. A line that is not JSON renders as is. The summary renders as `Answered in {duration}`.
+
+`NotificationResource` trims the title and body before it sends them. The summary renders as `{title} — {body}`. A blank title or body, or a denied notification permission, is a `NakamaError`. `usePushNotification` uses `Showing the notification…` while the call is in flight.
 
 ## Scripts
 

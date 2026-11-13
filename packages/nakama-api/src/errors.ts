@@ -1,6 +1,7 @@
 export type CommandError =
   | { type: 'DeviceInfo'; message: string }
   | { type: 'Settings'; message: string }
+  | { type: 'Notification'; message: string }
   | { type: 'Internal'; message: string };
 
 export class NakamaError extends Error {
