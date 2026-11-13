@@ -11,6 +11,7 @@ function RootLayout() {
         <nav className="mx-auto flex w-full max-w-5xl items-center gap-1 px-8 py-3">
           <span className="mr-3 text-sm font-semibold tracking-tight">Nakama</span>
           <NavLink to="/">Home</NavLink>
+          <NavLink to="/daemon">Daemon</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
       </header>
@@ -21,7 +22,7 @@ function RootLayout() {
   );
 }
 
-function NavLink({ to, children }: { to: '/' | '/settings'; children: string }) {
+function NavLink({ to, children }: { to: '/' | '/daemon' | '/settings'; children: string }) {
   return (
     <Link
       to={to}

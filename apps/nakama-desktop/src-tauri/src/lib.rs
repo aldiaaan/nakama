@@ -14,13 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+mod daemon;
 mod error;
 
 use std::path::PathBuf;
 
+use daemon::{DaemonController, DaemonOverview, IpcExchange, ProfilerKind};
+use nakama_daemon::{IpcEndpoint, IpcRequest};
 use nakama_device_info::DeviceInfo;
 use nakama_settings::{Settings, Theme};
-use tauri::Manager;
+use tauri::{Manager, RunEvent, State};
 
 pub use error::CommandError;
 
@@ -56,6 +59,46 @@ async fn save_settings(app: tauri::AppHandle, theme: Theme) -> Result<Settings, 
     Ok(settings)
 }
 
+/// Everything the Daemon page shows: state, subsystems, metrics, an IPC ping, calculations, and profilers.
+#[tauri::command]
+async fn daemon_overview(
+    daemon: State<'_, DaemonController>,
+) -> Result<DaemonOverview, CommandError> {
+    Ok(daemon.overview().await)
+}
+
+/// Start the example daemon again after it stopped or failed.
+#[tauri::command]
+async fn daemon_start(daemon: State<'_, DaemonController>) -> Result<(), CommandError> {
+    Ok(daemon.start()?)
+}
+
+/// Send one request over the daemon's IPC channel, the way an external client would.
+#[tauri::command]
+async fn daemon_ipc_request(
+    daemon: State<'_, DaemonController>,
+    request: IpcRequest,
+) -> Result<IpcExchange, CommandError> {
+    Ok(daemon.send_ipc(request).await?)
+}
+
+#[tauri::command]
+async fn daemon_start_profiler(
+    daemon: State<'_, DaemonController>,
+    kind: ProfilerKind,
+) -> Result<(), CommandError> {
+    Ok(daemon.start_profiler(kind)?)
+}
+
+/// Stop a profiler and write its profile into the app data folder.
+#[tauri::command]
+async fn daemon_stop_profiler(
+    daemon: State<'_, DaemonController>,
+    kind: ProfilerKind,
+) -> Result<(), CommandError> {
+    Ok(daemon.stop_profiler(kind).await?)
+}
+
 fn app_config_dir(app: &tauri::AppHandle) -> Result<PathBuf, CommandError> {
     app.path()
         .app_config_dir()
@@ -66,10 +109,30 @@ fn app_config_dir(app: &tauri::AppHandle) -> Result<PathBuf, CommandError> {
 pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .setup(|app| {
+            let daemon = DaemonController::new(
+                IpcEndpoint::named(daemon::NAME),
+                app.path().app_data_dir()?.join("profiles"),
+            );
+            daemon.start()?;
+            app.manage(daemon);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             device_info,
             load_settings,
-            save_settings
+            save_settings,
+            daemon_overview,
+            daemon_start,
+            daemon_ipc_request,
+            daemon_start_profiler,
+            daemon_stop_profiler
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())?
+        .run(|app, event| {
+            if let RunEvent::Exit = event {
+                app.state::<DaemonController>().stop_blocking();
+            }
+        });
+    Ok(())
 }

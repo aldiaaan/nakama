@@ -23,6 +23,15 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = { workspace = true }
+fastrand = "2"
+nakama-daemon = { path = "../../../crates/nakama-daemon" }
 nakama-device-info = { path = "../../../crates/nakama-device-info" }
 nakama-settings = { path = "../../../crates/nakama-settings" }
 thiserror = { workspace = true }
+tokio = { version = "1", features = ["time"] }
+
+[features]
+# Records every allocation while the heap profiler runs. Slows allocation for the whole app.
+heap-profiling = ["nakama-daemon/heap-profiling"]
+# CPU sampling profiler. Linux and macOS only.
+profiling = ["nakama-daemon/profiling"]

@@ -19,6 +19,10 @@
 
 use anyhow::Context;
 
+#[cfg(feature = "heap-profiling")]
+#[global_allocator]
+static ALLOC: nakama_daemon::HeapProfilerAlloc = nakama_daemon::HeapProfilerAlloc;
+
 fn main() -> anyhow::Result<()> {
     nakama_desktop_lib::run().context("failed to run the Tauri application")
 }

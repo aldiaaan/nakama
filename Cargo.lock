@@ -2235,6 +2235,8 @@ name = "nakama-desktop"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "fastrand",
+ "nakama-daemon",
  "nakama-device-info",
  "nakama-settings",
  "serde",
@@ -2243,6 +2245,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-opener",
  "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]
