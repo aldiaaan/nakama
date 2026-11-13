@@ -72,6 +72,7 @@ Display logic lives here. An app renders the strings and numbers this package al
 
 - A state label is the state with its first letter capitalized. `tone` is `ok` for running, `busy` while starting, stopping, or restarting, `idle` when stopped, and `error` when failed or aborted. The app picks the color for each tone.
 - Uptime renders as `1h 02m 03s`, `2m 05s`, or `12s`, and only while the daemon runs. Otherwise it renders as `—`.
+- The lifetime line says whether the daemon runs inside the app or in its own process that outlives it. The process line is `PID {pid}` while the daemon answers, otherwise `—`.
 - Counts use `en-US` grouping, such as `1,234,567`.
 - Durations render as whole microseconds under 1 ms, as milliseconds with one decimal under 1 s, and as seconds with two decimals after that. A missing IPC round trip renders as `—`.
 - A whole gauge renders as a count. Any other gauge renders with three decimals. The π estimate renders with six decimals, or `—` before the first Monte Carlo run.

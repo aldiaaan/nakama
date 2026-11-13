@@ -1,6 +1,8 @@
 import type { NakamaApi } from '../api';
 import { formatBytes, formatCount, formatDuration, formatUptime } from '../utils/format';
 
+export type DaemonMode = 'embedded' | 'detached';
+
 export type DaemonState = 'starting' | 'running' | 'stopping' | 'stopped' | 'failed';
 
 export type SubsystemState = 'starting' | 'running' | 'restarting' | 'stopping' | 'stopped' | 'failed' | 'aborted';
@@ -77,8 +79,10 @@ export type ProfilerReport = {
 };
 
 export type DaemonOverview = {
+  mode: DaemonMode;
   state: DaemonState;
   error: string | null;
+  pid: number | null;
   status: StatusReport | null;
   metrics: DaemonMetrics;
   prometheus: string;
@@ -111,6 +115,8 @@ export type DaemonStatusView = {
   stateLabel: string;
   tone: StatusTone;
   canStart: boolean;
+  lifetime: string;
+  process: string;
   uptime: string;
   subsystemsLabel: string;
   error: string | null;
@@ -196,6 +202,11 @@ const JOBS = 'workload_jobs_total';
 const REJECTED = 'workload_rejected_inputs_total';
 const RESTARTS = 'daemon_subsystem_restarts_total';
 const PI_ESTIMATE = 'workload_pi_estimate';
+
+const lifetimes: Record<DaemonMode, string> = {
+  embedded: 'Inside the app, stops when it closes',
+  detached: 'Own process, keeps running after the app closes',
+};
 
 const daemonTones: Record<DaemonState, StatusTone> = {
   starting: 'busy',
@@ -283,6 +294,8 @@ export class DaemonResource {
       stateLabel: capitalize(overview.state),
       tone: daemonTones[overview.state],
       canStart: overview.state === 'stopped' || overview.state === 'failed',
+      lifetime: lifetimes[overview.mode],
+      process: overview.pid == null ? '—' : `PID ${overview.pid}`,
       uptime: uptimeMs == null ? '—' : formatUptime(uptimeMs),
       subsystemsLabel: `${running} of ${subsystems.length} running`,
       error: overview.error,

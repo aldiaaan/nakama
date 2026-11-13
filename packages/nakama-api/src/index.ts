@@ -19,6 +19,7 @@ export type {
   CalculationOutcome,
   CalculationView,
   DaemonMetrics,
+  DaemonMode,
   DaemonOverview,
   DaemonOverviewView,
   DaemonState,
