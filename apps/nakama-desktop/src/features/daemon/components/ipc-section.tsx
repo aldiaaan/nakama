@@ -1,5 +1,5 @@
 import { ipcRequestChoices, useDaemonIpcRequest, type IpcView } from '@nakama/api';
-import { AnimateNumber, Button, PreferenceCard } from '@nakama/ui/components';
+import { AnimatedNumber, Button, PreferenceCard } from '@nakama/ui/components';
 
 import { Stat } from '../../../shared/components/stat';
 import { StatusBadge } from './status-badge';
@@ -28,7 +28,7 @@ export function IpcSection({ ipc }: IpcSectionProps) {
             label="Endpoint"
             value={<span className="font-mono text-xs break-all select-all">{ipc.endpoint}</span>}
           />
-          <Stat label="Round trip" value={<AnimateNumber>{ipc.roundTrip}</AnimateNumber>} />
+          <Stat label="Round trip" value={<AnimatedNumber>{ipc.roundTrip}</AnimatedNumber>} />
         </dl>
         {ipc.error ? <p className="text-destructive break-words">{ipc.error}</p> : null}
         <div className="flex flex-wrap gap-2">

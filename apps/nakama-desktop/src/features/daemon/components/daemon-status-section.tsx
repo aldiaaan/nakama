@@ -1,5 +1,5 @@
 import { useStartDaemon, type DaemonStatusView } from '@nakama/api';
-import { AnimateNumber, Button, PreferenceCard } from '@nakama/ui/components';
+import { AnimatedNumber, Button, PreferenceCard } from '@nakama/ui/components';
 
 import { Stat } from '../../../shared/components/stat';
 import { StatusBadge } from './status-badge';
@@ -33,8 +33,8 @@ export function DaemonStatusSection({ status }: DaemonStatusSectionProps) {
       </div>
       <PreferenceCard.Content className="flex flex-col gap-4">
         <dl className="grid grid-cols-2 gap-3">
-          <Stat label="Uptime" value={<AnimateNumber>{status.uptime}</AnimateNumber>} />
-          <Stat label="Subsystems" value={<AnimateNumber>{status.subsystemsLabel}</AnimateNumber>} />
+          <Stat label="Uptime" value={<AnimatedNumber>{status.uptime}</AnimatedNumber>} />
+          <Stat label="Subsystems" value={<AnimatedNumber>{status.subsystemsLabel}</AnimatedNumber>} />
         </dl>
         <ul className="grid gap-3 sm:grid-cols-2">
           {status.subsystems.map((subsystem) => (
@@ -43,7 +43,7 @@ export function DaemonStatusSection({ status }: DaemonStatusSectionProps) {
                 <span className="font-mono font-medium">{subsystem.name}</span>
                 <StatusBadge tone={subsystem.tone}>{subsystem.stateLabel}</StatusBadge>
               </div>
-              <AnimateNumber className="text-muted-foreground">{subsystem.restartsLabel}</AnimateNumber>
+              <AnimatedNumber className="text-muted-foreground">{subsystem.restartsLabel}</AnimatedNumber>
               {subsystem.lastError ? (
                 <p className="text-destructive truncate" title={subsystem.lastError}>
                   {subsystem.lastError}

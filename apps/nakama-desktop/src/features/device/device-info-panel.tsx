@@ -1,5 +1,5 @@
 import { useDeviceInfo } from '@nakama/api';
-import { AnimateNumber, Button, Progress } from '@nakama/ui/components';
+import { AnimatedNumber, Button, Progress } from '@nakama/ui/components';
 
 import { Stat } from '../../shared/components/stat';
 
@@ -28,24 +28,24 @@ export function DeviceInfoPanel() {
                 <h2 className="font-heading text-base font-medium">CPU</h2>
                 <p className="text-muted-foreground">{info.cpu.brand}</p>
               </div>
-              <AnimateNumber className="text-lg font-medium">{info.cpu.usageLabel}</AnimateNumber>
+              <AnimatedNumber className="text-lg font-medium">{info.cpu.usageLabel}</AnimatedNumber>
             </div>
             <Progress value={info.cpu.usagePercent} aria-label="CPU usage" />
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat label="Vendor" value={info.cpu.vendor} />
-              <Stat label="Physical cores" value={<AnimateNumber>{info.cpu.physicalCores}</AnimateNumber>} />
-              <Stat label="Logical cores" value={<AnimateNumber>{info.cpu.logicalCores}</AnimateNumber>} />
-              <Stat label="Usage" value={<AnimateNumber>{info.cpu.usageLabel}</AnimateNumber>} />
+              <Stat label="Physical cores" value={<AnimatedNumber>{info.cpu.physicalCores}</AnimatedNumber>} />
+              <Stat label="Logical cores" value={<AnimatedNumber>{info.cpu.logicalCores}</AnimatedNumber>} />
+              <Stat label="Usage" value={<AnimatedNumber>{info.cpu.usageLabel}</AnimatedNumber>} />
             </dl>
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {info.cpu.cores.map((core) => (
                 <li key={core.name} className="bg-muted/60 rounded-xl px-3 py-2">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="font-medium">{core.name}</span>
-                    <AnimateNumber className="text-muted-foreground">{core.usageLabel}</AnimateNumber>
+                    <AnimatedNumber className="text-muted-foreground">{core.usageLabel}</AnimatedNumber>
                   </div>
                   <Progress value={core.usagePercent} aria-label={`${core.name} usage`} />
-                  <AnimateNumber className="text-muted-foreground mt-2">{core.frequencyLabel}</AnimateNumber>
+                  <AnimatedNumber className="text-muted-foreground mt-2">{core.frequencyLabel}</AnimatedNumber>
                 </li>
               ))}
             </ul>
@@ -54,14 +54,14 @@ export function DeviceInfoPanel() {
           <section className="bg-card ring-foreground/10 flex flex-col gap-4 rounded-2xl p-6 text-sm ring-1">
             <div className="flex items-start justify-between gap-4">
               <h2 className="font-heading text-base font-medium">Memory</h2>
-              <AnimateNumber className="text-muted-foreground">{info.memory.summary}</AnimateNumber>
+              <AnimatedNumber className="text-muted-foreground">{info.memory.summary}</AnimatedNumber>
             </div>
             <Progress value={info.memory.usedPercent} aria-label="Memory used" />
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Stat label="Used" value={<AnimateNumber>{info.memory.used}</AnimateNumber>} />
-              <Stat label="Available" value={<AnimateNumber>{info.memory.available}</AnimateNumber>} />
-              <Stat label="Free" value={<AnimateNumber>{info.memory.free}</AnimateNumber>} />
-              <Stat label="Swap" value={<AnimateNumber>{info.memory.swap}</AnimateNumber>} />
+              <Stat label="Used" value={<AnimatedNumber>{info.memory.used}</AnimatedNumber>} />
+              <Stat label="Available" value={<AnimatedNumber>{info.memory.available}</AnimatedNumber>} />
+              <Stat label="Free" value={<AnimatedNumber>{info.memory.free}</AnimatedNumber>} />
+              <Stat label="Swap" value={<AnimatedNumber>{info.memory.swap}</AnimatedNumber>} />
             </dl>
           </section>
 
@@ -79,10 +79,10 @@ export function DeviceInfoPanel() {
                       <p className="font-medium">{gpu.title}</p>
                       <p className="text-muted-foreground">{gpu.detail}</p>
                     </div>
-                    <AnimateNumber>{gpu.usageLabel}</AnimateNumber>
+                    <AnimatedNumber>{gpu.usageLabel}</AnimatedNumber>
                   </div>
                   {gpu.hasUsage ? <Progress value={gpu.usagePercent} aria-label={`${gpu.title} usage`} /> : null}
-                  <AnimateNumber className="text-muted-foreground mt-2">{`VRAM ${gpu.vram}`}</AnimateNumber>
+                  <AnimatedNumber className="text-muted-foreground mt-2">{`VRAM ${gpu.vram}`}</AnimatedNumber>
                 </li>
               ))}
             </ul>

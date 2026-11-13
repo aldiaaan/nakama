@@ -1,5 +1,5 @@
 import { useStartProfiler, useStopProfiler, type ProfilerView } from '@nakama/api';
-import { AnimateNumber, Button, PreferenceCard } from '@nakama/ui/components';
+import { AnimatedNumber, Button, PreferenceCard } from '@nakama/ui/components';
 
 import { Stat } from '../../../shared/components/stat';
 import { StatusBadge } from './status-badge';
@@ -50,7 +50,7 @@ function ProfilerItem({ profiler }: ProfilerItemProps) {
       {profiler.heap.length > 0 ? (
         <dl className="grid grid-cols-3 gap-3">
           {profiler.heap.map((row) => (
-            <Stat key={row.name} label={row.name} value={<AnimateNumber>{row.value}</AnimateNumber>} />
+            <Stat key={row.name} label={row.name} value={<AnimatedNumber>{row.value}</AnimatedNumber>} />
           ))}
         </dl>
       ) : null}

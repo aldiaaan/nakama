@@ -3,13 +3,15 @@
 import { cn } from 'cn';
 import { motion, useReducedMotion, type Transition } from 'motion/react';
 
-const DIGIT_ROW_EM = 1.15;
+// Whole pixels so every wheel's offset (digit × row) lands on the same pixel grid.
+const ROW_HEIGHT = 'round(1.15em, 1px)';
+const ROW_STYLE = { height: 'var(--animated-number-row)' };
 
 const digitTransition: Transition = { type: 'spring', duration: 0.45, bounce: 0.1 };
 
 type NumberToken = { kind: 'digit'; digit: number; key: string } | { kind: 'mark'; text: string; key: string };
 
-type AnimateNumberProps = {
+type AnimatedNumberProps = {
   children: number | string;
   prefix?: string;
   suffix?: string;
@@ -18,7 +20,7 @@ type AnimateNumberProps = {
   className?: string;
 };
 
-function AnimateNumber({ children, prefix, suffix, locales, format, className }: AnimateNumberProps) {
+function AnimatedNumber({ children, prefix, suffix, locales, format, className }: AnimatedNumberProps) {
   const formatted = typeof children === 'number' ? formatNumber(children, locales, format) : children;
   const label = `${prefix ?? ''}${formatted}${suffix ?? ''}`;
   const reduceMotion = useReducedMotion();
@@ -27,12 +29,13 @@ function AnimateNumber({ children, prefix, suffix, locales, format, className }:
 
   return (
     <span
-      data-slot="animate-number"
+      data-slot="animated-number"
       className={cn('inline-flex items-center leading-none tabular-nums', className)}
+      style={{ '--animated-number-row': ROW_HEIGHT } as React.CSSProperties}
     >
       <span className="sr-only">{label}</span>
       {prefix ? (
-        <span aria-hidden className="inline-flex items-center" style={{ height: `${DIGIT_ROW_EM}em` }}>
+        <span aria-hidden className="inline-flex items-center" style={ROW_STYLE}>
           {prefix}
         </span>
       ) : null}
@@ -41,14 +44,14 @@ function AnimateNumber({ children, prefix, suffix, locales, format, className }:
           token.kind === 'digit' ? (
             <DigitWheel key={token.key} digit={token.digit} transition={transition} />
           ) : (
-            <span key={token.key} className="inline-flex items-center" style={{ height: `${DIGIT_ROW_EM}em` }}>
+            <span key={token.key} className="inline-flex items-center" style={ROW_STYLE}>
               {token.text === ' ' ? '\u00a0' : token.text}
             </span>
           )
         )}
       </span>
       {suffix ? (
-        <span aria-hidden className="inline-flex items-center" style={{ height: `${DIGIT_ROW_EM}em` }}>
+        <span aria-hidden className="inline-flex items-center" style={ROW_STYLE}>
           {suffix}
         </span>
       ) : null}
@@ -61,19 +64,19 @@ function DigitWheel({ digit, transition }: { digit: number; transition: Transiti
     <span
       className="relative inline-block overflow-hidden"
       style={{
+        ...ROW_STYLE,
         width: '1ch',
-        height: `${DIGIT_ROW_EM}em`,
         maskImage: 'linear-gradient(to bottom, transparent 0, #000 0.12em, #000 calc(100% - 0.12em), transparent 100%)',
       }}
     >
       <motion.span
         className="absolute inset-x-0 top-0 flex flex-col"
         initial={false}
-        animate={{ y: `${-digit * DIGIT_ROW_EM}em` }}
+        animate={{ y: `${-digit * 10}%` }}
         transition={transition}
       >
         {Array.from({ length: 10 }, (_, number) => (
-          <span key={number} className="flex items-center justify-center" style={{ height: `${DIGIT_ROW_EM}em` }}>
+          <span key={number} className="flex items-center justify-center" style={ROW_STYLE}>
             {number}
           </span>
         ))}
@@ -115,5 +118,5 @@ function formatNumber(
   }).format(value);
 }
 
-export { AnimateNumber };
-export type { AnimateNumberProps };
+export { AnimatedNumber };
+export type { AnimatedNumberProps };
