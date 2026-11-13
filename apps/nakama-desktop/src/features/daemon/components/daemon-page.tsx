@@ -14,7 +14,7 @@ export function DaemonPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Daemon</h1>
         <p className="text-muted-foreground text-sm">
-          An example daemon that crunches random inputs in the background for as long as the app is open.
+          An example daemon that crunches random inputs in the background.
         </p>
       </header>
 

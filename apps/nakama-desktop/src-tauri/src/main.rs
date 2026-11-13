@@ -24,5 +24,16 @@ use anyhow::Context;
 static ALLOC: nakama_daemon::HeapProfilerAlloc = nakama_daemon::HeapProfilerAlloc;
 
 fn main() -> anyhow::Result<()> {
+    let mut args = std::env::args_os().skip(1);
+    if args
+        .next()
+        .is_some_and(|arg| arg == nakama_desktop_lib::DAEMON_FLAG)
+    {
+        let data_dir = args
+            .next()
+            .context("the daemon needs the app data folder after --daemon")?;
+        return nakama_desktop_lib::run_daemon(data_dir.into())
+            .context("the background daemon failed");
+    }
     nakama_desktop_lib::run().context("failed to run the Tauri application")
 }

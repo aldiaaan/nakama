@@ -38,8 +38,19 @@ pub enum DaemonControlError {
     #[error("the daemon did not answer over IPC within {0:?}")]
     IpcTimeout(Duration),
 
-    #[error("failed to encode an IPC message: {0}")]
-    Encode(#[source] serde_json::Error),
+    #[error("invalid IPC JSON: {0}")]
+    Json(#[source] serde_json::Error),
+
+    #[error("failed to find this executable: {0}")]
+    CurrentExe(#[source] io::Error),
+
+    #[error("failed to copy {} to {}: {source}", from.display(), to.display())]
+    CopyDaemon {
+        from: PathBuf,
+        to: PathBuf,
+        #[source]
+        source: io::Error,
+    },
 
     #[error("the {0} profiler is not available in this build")]
     ProfilerUnavailable(ProfilerKind),
@@ -50,8 +61,8 @@ pub enum DaemonControlError {
     #[error("the {0} profiler is not running")]
     ProfilerIdle(ProfilerKind),
 
-    #[error("failed to create the profiles folder at {}: {source}", path.display())]
-    ProfilesFolder {
+    #[error("failed to create the folder at {}: {source}", path.display())]
+    CreateFolder {
         path: PathBuf,
         #[source]
         source: io::Error,

@@ -19,7 +19,7 @@ pub enum ProfilerKind {
     Heap,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Availability {
     Available,
@@ -29,7 +29,7 @@ pub enum Availability {
     FeatureDisabled,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProfilerReport {
     pub kind: ProfilerKind,
@@ -237,7 +237,7 @@ impl Profilers {
 }
 
 fn profile_path(dir: &Path, kind: ProfilerKind) -> Result<PathBuf, DaemonControlError> {
-    fs::create_dir_all(dir).map_err(|source| DaemonControlError::ProfilesFolder {
+    fs::create_dir_all(dir).map_err(|source| DaemonControlError::CreateFolder {
         path: dir.to_owned(),
         source,
     })?;

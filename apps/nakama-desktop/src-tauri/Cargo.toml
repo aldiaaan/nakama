@@ -28,7 +28,7 @@ nakama-daemon = { path = "../../../crates/nakama-daemon" }
 nakama-device-info = { path = "../../../crates/nakama-device-info" }
 nakama-settings = { path = "../../../crates/nakama-settings" }
 thiserror = { workspace = true }
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["sync", "time"] }
 
 [features]
 # Records every allocation while the heap profiler runs. Slows allocation for the whole app.

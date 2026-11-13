@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use nakama_daemon::{Metrics, RestartPolicy, ShutdownHandle, Subsystem};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::time;
 
 use crate::error::WorkloadError;
@@ -26,7 +26,7 @@ pub enum Workload {
     Collatz,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
@@ -56,11 +56,11 @@ pub enum Outcome {
     },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Calculation {
     pub id: u64,
-    pub subsystem: &'static str,
+    pub subsystem: String,
     pub seed: u32,
     pub duration_us: u64,
     pub finished_at_ms: u64,
@@ -177,7 +177,7 @@ impl CalculationLog {
         state.next_id += 1;
         let calculation = Calculation {
             id: state.next_id,
-            subsystem: workload.name(),
+            subsystem: workload.name().to_owned(),
             seed,
             duration_us: u64::try_from(duration.as_micros()).unwrap_or(u64::MAX),
             finished_at_ms: SystemTime::now()

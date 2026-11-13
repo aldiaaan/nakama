@@ -18,6 +18,9 @@ export function ProfilersSection({ profilers }: ProfilersSectionProps) {
         </PreferenceCard.Description>
       </PreferenceCard.Header>
       <PreferenceCard.Content>
+        {profilers.length === 0 ? (
+          <p className="text-muted-foreground">Start the daemon to use its profilers.</p>
+        ) : null}
         <ul className="flex flex-col gap-3">
           {profilers.map((profiler) => (
             <ProfilerItem key={profiler.kind} profiler={profiler} />

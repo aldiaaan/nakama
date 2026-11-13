@@ -1,35 +1,55 @@
 mod profilers;
+mod service;
 mod workload;
 
-use std::collections::BTreeMap;
+use std::env;
+use std::ffi::OsStr;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use nakama_daemon::{
-    Config, Daemon, DaemonError, DaemonHandle, IpcClient, IpcEndpoint, IpcRequest, IpcResponse,
-    Metrics, ShutdownTimeouts, StatusReport,
+    DaemonError, DaemonHandle, DetachedDaemon, IpcClient, IpcEndpoint, IpcRequest, IpcResponse,
+    SignalConfig, StatusReport,
 };
 use serde::Serialize;
+use serde::de::DeserializeOwned;
+use serde_json::Value;
 use tauri::async_runtime::{self, JoinHandle};
 use tokio::time;
 
 use crate::error::DaemonControlError;
 pub use profilers::ProfilerKind;
-use profilers::{ProfilerReport, Profilers};
+use profilers::ProfilerReport;
+use service::{MetricsReport, ProfilerParams, Snapshot};
+pub use service::{NAME, run_standalone};
+use workload::Calculation;
 pub use workload::Workload;
-use workload::{Calculation, CalculationLog, Calculator};
 
-pub const NAME: &str = "nakama-daemon";
+/// Passed to this executable, with the data folder, to run only the daemon.
+pub const DAEMON_FLAG: &str = "--daemon";
+
 const IPC_TIMEOUT: Duration = Duration::from_secs(1);
+const PROFILE_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Owns the example daemon that runs in the background for as long as the app is open.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DaemonMode {
+    /// Runs on the app's async runtime and stops when the app exits.
+    Embedded,
+    /// Runs in a separate copy of this executable and keeps running after the app exits.
+    Detached,
+}
+
+/// Starts the example daemon and reads it over IPC, whichever process it runs in.
 pub struct DaemonController {
+    mode: DaemonMode,
     endpoint: IpcEndpoint,
-    profiles_dir: PathBuf,
-    calculations: CalculationLog,
-    run: Mutex<Option<Run>>,
-    profilers: Mutex<Profilers>,
+    data_dir: PathBuf,
+    embedded: Mutex<Option<Run>>,
+    /// Held while a detached launch is in flight. Keeps the last launch error.
+    launch: tokio::sync::Mutex<Option<String>>,
 }
 
 struct Run {
@@ -51,29 +71,16 @@ pub enum DaemonState {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DaemonOverview {
+    pub mode: DaemonMode,
     pub state: DaemonState,
     pub error: Option<String>,
+    pub pid: Option<u32>,
     pub status: Option<StatusReport>,
     pub metrics: MetricsReport,
     pub prometheus: String,
     pub ipc: IpcReport,
     pub calculations: Vec<Calculation>,
     pub profilers: Vec<ProfilerReport>,
-}
-
-#[derive(Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MetricsReport {
-    pub counters: BTreeMap<String, u64>,
-    pub gauges: BTreeMap<String, f64>,
-    pub timings: BTreeMap<String, TimingReport>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TimingReport {
-    pub count: u64,
-    pub total_ms: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -95,45 +102,120 @@ pub struct IpcExchange {
 }
 
 impl DaemonController {
-    pub fn new(endpoint: IpcEndpoint, profiles_dir: PathBuf) -> Self {
+    pub fn new(mode: DaemonMode, endpoint: IpcEndpoint, data_dir: PathBuf) -> Self {
         Self {
+            mode,
             endpoint,
-            profiles_dir,
-            calculations: CalculationLog::default(),
-            run: Mutex::new(None),
-            profilers: Mutex::new(Profilers::default()),
+            data_dir,
+            embedded: Mutex::new(None),
+            launch: tokio::sync::Mutex::new(None),
         }
     }
 
-    pub fn start(&self) -> Result<(), DaemonControlError> {
-        let mut run = lock(&self.run);
+    pub async fn start(&self) -> Result<(), DaemonControlError> {
+        match self.mode {
+            DaemonMode::Embedded => self.start_embedded(),
+            DaemonMode::Detached => {
+                let mut last_error = self.launch.lock().await;
+                let launched = self.launch_detached().await;
+                *last_error = launched.as_ref().err().map(ToString::to_string);
+                launched
+            }
+        }
+    }
+
+    /// Stops an embedded daemon and waits for it. A detached daemon keeps running.
+    ///
+    /// Call outside the async runtime, such as on app exit.
+    pub fn stop_blocking(&self) {
+        let Some(run) = lock(&self.embedded).take() else {
+            return;
+        };
+        run.handle.shutdown();
+        let _ = async_runtime::block_on(run.task);
+    }
+
+    pub async fn overview(&self) -> DaemonOverview {
+        let started = Instant::now();
+        let snapshot = self
+            .call::<Snapshot>(service::SNAPSHOT, Value::Null, IPC_TIMEOUT)
+            .await;
+        let round_trip_us = micros(started.elapsed());
+        let endpoint = self.endpoint.to_string();
+
+        match snapshot {
+            Ok(snapshot) => DaemonOverview {
+                mode: self.mode,
+                state: if snapshot.status.shutdown_reason.is_some() {
+                    DaemonState::Stopping
+                } else {
+                    DaemonState::Running
+                },
+                error: None,
+                pid: Some(snapshot.pid),
+                status: Some(snapshot.status),
+                metrics: snapshot.metrics,
+                prometheus: snapshot.prometheus,
+                ipc: IpcReport {
+                    endpoint,
+                    reachable: true,
+                    round_trip_us: Some(round_trip_us),
+                    error: None,
+                },
+                calculations: snapshot.calculations,
+                profilers: snapshot.profilers,
+            },
+            Err(unreachable) => {
+                let (state, error) = self.offline_state();
+                DaemonOverview {
+                    mode: self.mode,
+                    state,
+                    error,
+                    pid: None,
+                    status: None,
+                    metrics: MetricsReport::default(),
+                    prometheus: String::new(),
+                    ipc: IpcReport {
+                        endpoint,
+                        reachable: false,
+                        round_trip_us: None,
+                        error: Some(unreachable.to_string()),
+                    },
+                    calculations: Vec::new(),
+                    profilers: Vec::new(),
+                }
+            }
+        }
+    }
+
+    pub async fn send_ipc(&self, request: IpcRequest) -> Result<IpcExchange, DaemonControlError> {
+        let line = serde_json::to_string(&request).map_err(DaemonControlError::Json)?;
+        let started = Instant::now();
+        let response = self.request(request).await?;
+        Ok(IpcExchange {
+            request: line,
+            response: serde_json::to_string(&response).map_err(DaemonControlError::Json)?,
+            round_trip_us: micros(started.elapsed()),
+        })
+    }
+
+    pub async fn start_profiler(&self, kind: ProfilerKind) -> Result<(), DaemonControlError> {
+        self.profiler(service::START_PROFILER, kind, IPC_TIMEOUT)
+            .await
+    }
+
+    pub async fn stop_profiler(&self, kind: ProfilerKind) -> Result<(), DaemonControlError> {
+        self.profiler(service::STOP_PROFILER, kind, PROFILE_TIMEOUT)
+            .await
+    }
+
+    fn start_embedded(&self) -> Result<(), DaemonControlError> {
+        let mut run = lock(&self.embedded);
         if run.as_ref().is_some_and(|run| lock(&run.result).is_none()) {
             return Err(DaemonControlError::AlreadyRunning);
         }
-
-        let metrics = Metrics::new();
-        let builder = Workload::ALL.into_iter().fold(
-            Daemon::builder(Config {
-                name: NAME.to_owned(),
-                shutdown: ShutdownTimeouts {
-                    graceful: Duration::from_secs(2),
-                    force: Duration::from_secs(4),
-                },
-                ipc: Some(self.endpoint.clone()),
-                ..Config::default()
-            })
-            // Ctrl+C belongs to the app, not to the daemon inside it.
-            .without_signals()
-            .with_metrics(metrics.clone()),
-            |builder, workload| {
-                builder.with_subsystem(Calculator::new(
-                    workload,
-                    metrics.clone(),
-                    self.calculations.clone(),
-                ))
-            },
-        );
-        let daemon = builder.build()?;
+        // Ctrl+C belongs to the app, not to the daemon inside it.
+        let daemon = service::build(self.endpoint.clone(), &self.data_dir, SignalConfig::none())?;
         let handle = daemon.handle();
         let result = Arc::new(Mutex::new(None));
         let task = async_runtime::spawn({
@@ -154,96 +236,95 @@ impl DaemonController {
         Ok(())
     }
 
-    /// Stops the daemon and waits for it. Call outside the async runtime, such as on app exit.
-    pub fn stop_blocking(&self) {
-        let Some(run) = lock(&self.run).take() else {
-            return;
-        };
-        run.handle.shutdown();
-        let _ = async_runtime::block_on(run.task);
-    }
-
-    pub async fn overview(&self) -> DaemonOverview {
-        let ipc = self.ping().await;
-        let (state, error, status, snapshot) = {
-            let run = lock(&self.run);
-            match run.as_ref() {
-                None => (DaemonState::Stopped, None, None, None),
-                Some(run) => {
-                    let (state, error) = match lock(&run.result).as_ref() {
-                        Some(Ok(())) => (DaemonState::Stopped, None),
-                        Some(Err(error)) => (DaemonState::Failed, Some(error.to_string())),
-                        None if run.handle.is_running() => (DaemonState::Running, None),
-                        None if run.handle.stats().shutdown_reason.is_some() => {
-                            (DaemonState::Stopping, None)
-                        }
-                        None => (DaemonState::Starting, None),
-                    };
-                    let status = StatusReport::from(&run.handle.stats());
-                    (state, error, Some(status), Some(run.handle.metrics()))
-                }
-            }
-        };
-        let snapshot = snapshot.unwrap_or_default();
-
-        DaemonOverview {
-            state,
-            error,
-            status,
-            prometheus: snapshot.render_prometheus(),
-            metrics: MetricsReport {
-                counters: snapshot.counters,
-                gauges: snapshot.gauges,
-                timings: snapshot
-                    .timings
-                    .into_iter()
-                    .map(|(name, timing)| {
-                        let report = TimingReport {
-                            count: timing.count,
-                            total_ms: timing.total.as_secs_f64() * 1000.0,
-                        };
-                        (name, report)
-                    })
-                    .collect(),
-            },
-            ipc,
-            calculations: self.calculations.recent(),
-            profilers: lock(&self.profilers).reports(),
+    async fn launch_detached(&self) -> Result<(), DaemonControlError> {
+        if IpcClient::connect(&self.endpoint).await.is_ok() {
+            return Ok(());
         }
-    }
-
-    pub async fn send_ipc(&self, request: IpcRequest) -> Result<IpcExchange, DaemonControlError> {
-        let started = Instant::now();
-        let response = self.request(request).await?;
-        Ok(IpcExchange {
-            request: serde_json::to_string(&request).map_err(DaemonControlError::Encode)?,
-            response: serde_json::to_string(&response).map_err(DaemonControlError::Encode)?,
-            round_trip_us: micros(started.elapsed()),
-        })
-    }
-
-    pub fn start_profiler(&self, kind: ProfilerKind) -> Result<(), DaemonControlError> {
-        lock(&self.profilers).start(kind, &self.profiles_dir)
-    }
-
-    pub async fn stop_profiler(&self, kind: ProfilerKind) -> Result<(), DaemonControlError> {
-        let finish = lock(&self.profilers).stop(kind)?;
-        let path = async_runtime::spawn_blocking(finish)
-            .await
-            .map_err(DaemonControlError::Join)??;
-        lock(&self.profilers).finished(kind, path);
+        let program = self.install_daemon_program()?;
+        DetachedDaemon::new(self.endpoint.clone(), program)
+            .arg(DAEMON_FLAG)
+            .arg(&self.data_dir)
+            .log_file(self.daemon_dir().join("daemon.log"))
+            .ensure_running()
+            .await?;
         Ok(())
     }
 
-    async fn ping(&self) -> IpcReport {
-        let started = Instant::now();
-        let result = self.request(IpcRequest::Status).await;
-        IpcReport {
-            endpoint: self.endpoint.to_string(),
-            reachable: result.is_ok(),
-            round_trip_us: result.is_ok().then(|| micros(started.elapsed())),
-            error: result.err().map(|error| error.to_string()),
+    /// Copies this executable for the detached daemon to run. The original stays unlocked, so
+    /// a rebuild or an update can replace it while the daemon runs.
+    fn install_daemon_program(&self) -> Result<PathBuf, DaemonControlError> {
+        let current = env::current_exe().map_err(DaemonControlError::CurrentExe)?;
+        let dir = self.daemon_dir();
+        fs::create_dir_all(&dir).map_err(|source| DaemonControlError::CreateFolder {
+            path: dir.clone(),
+            source,
+        })?;
+        let target = dir.join(current.file_name().unwrap_or(OsStr::new(NAME)));
+        match fs::copy(&current, &target) {
+            Ok(_) => Ok(target),
+            // A copy that is still shutting down keeps its file locked. Start from it as is.
+            Err(_) if target.is_file() => Ok(target),
+            Err(source) => Err(DaemonControlError::CopyDaemon {
+                from: current,
+                to: target,
+                source,
+            }),
         }
+    }
+
+    fn daemon_dir(&self) -> PathBuf {
+        self.data_dir.join("daemon")
+    }
+
+    fn offline_state(&self) -> (DaemonState, Option<String>) {
+        match self.mode {
+            DaemonMode::Embedded => match lock(&self.embedded).as_ref() {
+                None => (DaemonState::Stopped, None),
+                Some(run) => match lock(&run.result).as_ref() {
+                    Some(Ok(())) => (DaemonState::Stopped, None),
+                    Some(Err(error)) => (DaemonState::Failed, Some(error.to_string())),
+                    None if run.handle.stats().shutdown_reason.is_some() => {
+                        (DaemonState::Stopping, None)
+                    }
+                    None => (DaemonState::Starting, None),
+                },
+            },
+            DaemonMode::Detached => match self.launch.try_lock() {
+                Err(_) => (DaemonState::Starting, None),
+                Ok(last_error) => match last_error.as_ref() {
+                    Some(error) => (DaemonState::Failed, Some(error.clone())),
+                    None => (DaemonState::Stopped, None),
+                },
+            },
+        }
+    }
+
+    async fn profiler(
+        &self,
+        method: &str,
+        kind: ProfilerKind,
+        timeout: Duration,
+    ) -> Result<(), DaemonControlError> {
+        let params =
+            serde_json::to_value(ProfilerParams { kind }).map_err(DaemonControlError::Json)?;
+        self.call::<Value>(method, params, timeout).await?;
+        Ok(())
+    }
+
+    async fn call<T: DeserializeOwned>(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<T, DaemonControlError> {
+        let call = async {
+            let mut client = IpcClient::connect(&self.endpoint).await?;
+            client.call(method, params).await
+        };
+        let value = time::timeout(timeout, call)
+            .await
+            .map_err(|_| DaemonControlError::IpcTimeout(timeout))??;
+        serde_json::from_value(value).map_err(DaemonControlError::Json)
     }
 
     async fn request(&self, request: IpcRequest) -> Result<IpcResponse, DaemonControlError> {
@@ -274,7 +355,7 @@ mod tests {
     use tauri::async_runtime;
     use tokio::time;
 
-    use super::{DaemonController, DaemonOverview, DaemonState};
+    use super::{DaemonController, DaemonMode, DaemonOverview, DaemonState, ProfilerKind};
     use crate::error::DaemonControlError;
 
     async fn wait_for(
@@ -291,23 +372,31 @@ mod tests {
         panic!("the daemon never reached the expected state");
     }
 
+    fn embedded(test: &str) -> DaemonController {
+        let name = format!("nakama-desktop-{test}-{}", process::id());
+        DaemonController::new(
+            DaemonMode::Embedded,
+            IpcEndpoint::named(&name),
+            std::env::temp_dir().join(name),
+        )
+    }
+
     #[test]
     fn runs_answers_ipc_and_starts_again() {
-        let name = format!("nakama-desktop-test-{}", process::id());
-        let controller =
-            DaemonController::new(IpcEndpoint::named(&name), std::env::temp_dir().join(&name));
-        controller.start().expect("start");
-        assert!(matches!(
-            controller.start(),
-            Err(DaemonControlError::AlreadyRunning)
-        ));
-
+        let controller = embedded("run");
         async_runtime::block_on(async {
+            controller.start().await.expect("start");
+            assert!(matches!(
+                controller.start().await,
+                Err(DaemonControlError::AlreadyRunning)
+            ));
+
             let overview = wait_for(&controller, |overview| {
                 overview.ipc.reachable && !overview.calculations.is_empty()
             })
             .await;
             assert_eq!(overview.state, DaemonState::Running);
+            assert_eq!(overview.pid, Some(process::id()));
             assert_eq!(
                 overview.status.map(|status| status.subsystems.len()),
                 Some(4)
@@ -318,6 +407,7 @@ mod tests {
                     .prometheus
                     .contains("# TYPE workload_jobs_total counter")
             );
+            assert_eq!(overview.profilers.len(), 2);
 
             let exchange = controller
                 .send_ipc(IpcRequest::Shutdown)
@@ -331,44 +421,44 @@ mod tests {
             })
             .await;
             assert!(!overview.ipc.reachable);
-        });
 
-        controller.start().expect("start again");
+            controller.start().await.expect("start again");
+        });
         controller.stop_blocking();
     }
 
-    #[cfg(feature = "heap-profiling")]
     #[test]
-    fn writes_a_heap_profile() {
-        use super::ProfilerKind;
+    fn controls_profilers_over_ipc() {
+        let controller = embedded("profilers");
+        async_runtime::block_on(async {
+            controller.start().await.expect("start");
+            wait_for(&controller, |overview| overview.ipc.reachable).await;
 
-        let dir = std::env::temp_dir().join(format!("nakama-desktop-heap-{}", process::id()));
-        let controller = DaemonController::new(IpcEndpoint::named("unused"), dir.clone());
-        controller
-            .start_profiler(ProfilerKind::Heap)
-            .expect("start heap profiler");
-        assert!(matches!(
-            controller.start_profiler(ProfilerKind::Heap),
-            Err(DaemonControlError::ProfilerRunning(ProfilerKind::Heap))
-        ));
-        async_runtime::block_on(controller.stop_profiler(ProfilerKind::Heap))
-            .expect("stop heap profiler");
+            #[cfg(not(all(feature = "profiling", unix)))]
+            assert!(matches!(
+                controller.start_profiler(ProfilerKind::Cpu).await,
+                Err(DaemonControlError::Daemon(nakama_daemon::DaemonError::IpcMethod { message, .. }))
+                    if message == "the CPU profiler is not available in this build"
+            ));
 
-        let reports = super::lock(&controller.profilers).reports();
-        let profile = reports[1].last_profile.as_deref().expect("profile path");
-        assert!(std::path::Path::new(profile).is_file());
-        let _ = std::fs::remove_dir_all(dir);
-    }
-
-    #[cfg(not(all(feature = "profiling", unix)))]
-    #[test]
-    fn reports_a_missing_cpu_profiler() {
-        use super::ProfilerKind;
-
-        let controller = DaemonController::new(IpcEndpoint::named("unused"), std::env::temp_dir());
-        assert!(matches!(
-            controller.start_profiler(ProfilerKind::Cpu),
-            Err(DaemonControlError::ProfilerUnavailable(ProfilerKind::Cpu))
-        ));
+            #[cfg(feature = "heap-profiling")]
+            {
+                controller
+                    .start_profiler(ProfilerKind::Heap)
+                    .await
+                    .expect("start heap profiler");
+                controller
+                    .stop_profiler(ProfilerKind::Heap)
+                    .await
+                    .expect("stop heap profiler");
+                let overview = controller.overview().await;
+                let profile = overview.profilers[1]
+                    .last_profile
+                    .as_deref()
+                    .expect("profile path");
+                assert!(std::path::Path::new(profile).is_file());
+            }
+        });
+        controller.stop_blocking();
     }
 }

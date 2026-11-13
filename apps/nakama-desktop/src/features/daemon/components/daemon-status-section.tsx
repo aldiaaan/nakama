@@ -32,7 +32,9 @@ export function DaemonStatusSection({ status }: DaemonStatusSectionProps) {
         </div>
       </div>
       <PreferenceCard.Content className="flex flex-col gap-4">
-        <dl className="grid grid-cols-2 gap-3">
+        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat label="Lifetime" value={status.lifetime} />
+          <Stat label="Process" value={<AnimatedNumber>{status.process}</AnimatedNumber>} />
           <Stat label="Uptime" value={<AnimatedNumber>{status.uptime}</AnimatedNumber>} />
           <Stat label="Subsystems" value={<AnimatedNumber>{status.subsystemsLabel}</AnimatedNumber>} />
         </dl>

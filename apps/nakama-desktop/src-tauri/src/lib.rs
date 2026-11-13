@@ -20,12 +20,16 @@ mod error;
 use std::path::PathBuf;
 
 use daemon::{DaemonController, DaemonOverview, IpcExchange, ProfilerKind};
-use nakama_daemon::{IpcEndpoint, IpcRequest};
+use nakama_daemon::{DaemonError, IpcEndpoint, IpcRequest};
 use nakama_device_info::DeviceInfo;
 use nakama_settings::{Settings, Theme};
 use tauri::{Manager, RunEvent, State};
 
+pub use daemon::{DAEMON_FLAG, DaemonMode};
 pub use error::CommandError;
+
+/// `Detached` keeps the example daemon running after the app closes. `Embedded` stops it with the app.
+const DAEMON_MODE: DaemonMode = DaemonMode::Detached;
 
 /// Read the host CPU, memory, and GPU, print the snapshot, and return it to the webview.
 #[tauri::command]
@@ -70,7 +74,7 @@ async fn daemon_overview(
 /// Start the example daemon again after it stopped or failed.
 #[tauri::command]
 async fn daemon_start(daemon: State<'_, DaemonController>) -> Result<(), CommandError> {
-    Ok(daemon.start()?)
+    Ok(daemon.start().await?)
 }
 
 /// Send one request over the daemon's IPC channel, the way an external client would.
@@ -87,7 +91,7 @@ async fn daemon_start_profiler(
     daemon: State<'_, DaemonController>,
     kind: ProfilerKind,
 ) -> Result<(), CommandError> {
-    Ok(daemon.start_profiler(kind)?)
+    Ok(daemon.start_profiler(kind).await?)
 }
 
 /// Stop a profiler and write its profile into the app data folder.
@@ -110,12 +114,17 @@ pub fn run() -> tauri::Result<()> {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let daemon = DaemonController::new(
+            app.manage(DaemonController::new(
+                DAEMON_MODE,
                 IpcEndpoint::named(daemon::NAME),
-                app.path().app_data_dir()?.join("profiles"),
-            );
-            daemon.start()?;
-            app.manage(daemon);
+                app.path().app_local_data_dir()?,
+            ));
+            let app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(error) = app.state::<DaemonController>().start().await {
+                    eprintln!("failed to start the daemon: {error}");
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -135,4 +144,11 @@ pub fn run() -> tauri::Result<()> {
             }
         });
     Ok(())
+}
+
+/// Runs only the example daemon, without a window, until a signal or an IPC shutdown request.
+///
+/// The app starts this in a detached copy of itself with `DAEMON_FLAG` and its data folder.
+pub fn run_daemon(data_dir: PathBuf) -> Result<(), DaemonError> {
+    daemon::run_standalone(IpcEndpoint::named(daemon::NAME), data_dir)
 }
