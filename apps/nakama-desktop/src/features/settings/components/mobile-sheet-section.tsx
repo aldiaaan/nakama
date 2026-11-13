@@ -1,4 +1,8 @@
-import { Button, MobileSheet, PreferenceCard } from '@nakama/ui/components';
+import { AnimatedContainer, Button, MobileSheet, PreferenceCard } from '@nakama/ui/components';
+import { useQuery } from '@tanstack/react-query';
+
+const lorem =
+  'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.';
 
 const routes = [
   { id: 'home', title: 'Home', element: <HomeScreen /> },
@@ -25,9 +29,29 @@ export function MobileSheetSection() {
 }
 
 function HomeScreen() {
+  const copy = useQuery({
+    queryKey: ['settings', 'mobile-sheet-copy'],
+    queryFn: async () => {
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 900);
+      });
+      return lorem;
+    },
+    gcTime: 0,
+  });
+
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-muted-foreground">A short screen in this sheet's own stack.</p>
+      <AnimatedContainer className="w-full">
+        {copy.isPending ? (
+          <div className="flex h-10 w-full items-center justify-center" role="status">
+            <span className="border-muted-foreground/30 border-t-foreground size-6 shrink-0 animate-spin rounded-full border-2" />
+            <span className="sr-only">Loading</span>
+          </div>
+        ) : (
+          <p className="text-muted-foreground w-full">{copy.data}</p>
+        )}
+      </AnimatedContainer>
       <MobileSheet.Link className="w-full" to="detail">
         Continue
       </MobileSheet.Link>
