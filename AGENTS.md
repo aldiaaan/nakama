@@ -24,6 +24,22 @@ Do not add a `package.json` under `apps/nakama-desktop/src-tauri`. The desktop a
 
 Do not comment every line. Add comments only when the code is non-obvious, temporarily hacky, or needs short context for later readers.
 
+## Signatures
+
+Change the existing function or React component. Update its signature, then search the codebase and update every call site and test.
+
+Do not add a duplicate, a `v2`, or a wrapper so the old signature can stay, unless the user explicitly asks for one. Keep the original only when a public or external API contract requires it, when a deprecation is phased, or when the new behavior is a separate responsibility.
+
+## Lint and format
+
+oxlint lints TypeScript. oxfmt formats it. Do not add ESLint or Prettier.
+
+Shared config lives in `@nakama/oxc`. `./base` exports `nakamaOxlintBaseConfig`. `./react` exports `nakamaOxlintReactConfig`. `./fmt` exports `nakamaOxfmtConfig`.
+
+Each TypeScript package has `oxlint.config.ts` and `oxfmt.config.ts` that extend those. Put a rule in `@nakama/oxc` when every package should follow it. A package config only adds ignores or rules for that package.
+
+After a TypeScript change, run `pnpm lint` in that package. Format with `pnpm fmt` where that script exists, otherwise `pnpm exec oxfmt`. `pnpm lint:fix` applies oxlint fixes. `pnpm fmt:check` checks formatting where that script exists.
+
 ## TypeScript code guidelines
 
 - **Exports:** Use a named export. Use a default export only when a library requires it, including a module that only loads through a dynamic import.
