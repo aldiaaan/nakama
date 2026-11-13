@@ -8,4 +8,19 @@ authors.workspace = true
 publish = false
 
 [dependencies]
+dhat = { version = "0.3.3", optional = true }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 thiserror = { workspace = true }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt", "signal", "sync", "time"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
+
+[features]
+heap-profiling = ["dep:dhat"]
+profiling = ["dep:pprof"]
+
+[target."cfg(unix)".dependencies]
+pprof = { version = "0.15.0", features = ["prost-codec"], optional = true }

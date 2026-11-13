@@ -14,6 +14,28 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+mod config;
+mod daemon;
 mod error;
+mod ipc;
+mod lock;
+mod metrics;
+#[cfg(any(feature = "profiling", feature = "heap-profiling"))]
+mod profiling;
+mod shutdown;
+mod signal;
+mod subsystem;
 
+pub use config::{Config, ShutdownTimeouts};
+pub use daemon::{Daemon, DaemonBuilder, DaemonHandle, DaemonStats};
 pub use error::DaemonError;
+pub use ipc::{IpcClient, IpcEndpoint, IpcRequest, IpcResponse, StatusReport, SubsystemReport};
+pub use lock::InstanceLock;
+pub use metrics::{Metrics, MetricsSnapshot, Timer, Timing};
+#[cfg(all(feature = "profiling", unix))]
+pub use profiling::CpuProfiler;
+#[cfg(feature = "heap-profiling")]
+pub use profiling::{HeapProfiler, HeapProfilerAlloc};
+pub use shutdown::{ShutdownHandle, ShutdownReason};
+pub use signal::{Signal, SignalConfig};
+pub use subsystem::{RestartPolicy, Subsystem, SubsystemState, SubsystemStatus};

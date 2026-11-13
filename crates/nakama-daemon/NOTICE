@@ -1,0 +1,13 @@
+nakama-daemon
+Copyright (C) 2026 aldiaaan
+
+This crate's design is based on proc-daemon 1.1.4 by James Gober
+(https://github.com/jamesgober/proc-daemon), licensed under the Apache
+License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0).
+
+nakama-daemon is a rewrite rather than a copy. It keeps the overall shape:
+a daemon builder, subsystems with restart policies, cross-platform signal
+handling, graceful shutdown with timeouts, a PID file, a single-instance
+lock, metrics, IPC, and profiling. The implementation, error types, and
+public API differ. This crate is distributed under the GNU General Public
+License, version 3 or later.
