@@ -2,6 +2,8 @@
 resolver = "3"
 members = [
     "apps/nakama-desktop/src-tauri",
+    "crates/nakama-agent",
+    "crates/nakama-daemon",
     "crates/nakama-device-info",
     "crates/nakama-settings",
 ]

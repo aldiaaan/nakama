@@ -1,0 +1,6 @@
+{
+  "name": "nakama-agent",
+  "version": "0.0.1",
+  "private": true,
+  "description": "agent for Nakama"
+}

@@ -2058,6 +2058,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "nakama-agent"
+version = "0.0.1"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "nakama-daemon"
+version = "0.0.1"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "nakama-desktop"
 version = "0.0.1"
 dependencies = [

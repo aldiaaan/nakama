@@ -1,0 +1,11 @@
+[package]
+name = "nakama-daemon"
+version = "0.0.1"
+description = "daemon for Nakama"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+thiserror = { workspace = true }
