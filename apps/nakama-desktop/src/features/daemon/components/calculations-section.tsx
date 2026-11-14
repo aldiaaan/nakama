@@ -1,5 +1,5 @@
 import { useExampleDaemonReport } from '@nakama/api';
-import { AnimatedNumber, PreferenceCard } from '@nakama/ui/components';
+import { AnimatedNumber, AnimatedScrollable, PreferenceCard } from '@nakama/ui/components';
 
 import { Stat } from '../../../shared/components/stat';
 
@@ -23,27 +23,31 @@ export function CalculationsSection() {
             <Stat label="Latest π" value={<AnimatedNumber>{report.piEstimate}</AnimatedNumber>} />
           </dl>
         ) : null}
-        {report && calculations.length === 0 ? (
-          <p className="text-muted-foreground">Waiting for the first result…</p>
-        ) : null}
-        {calculations.length > 0 ? (
-          <ol className="no-scrollbar flex max-h-96 flex-col gap-2 overflow-y-auto">
-            {calculations.map((calculation) => (
-              <li
-                key={calculation.id}
-                className="bg-muted/60 grid grid-cols-[1fr_auto] gap-x-4 gap-y-0.5 rounded-xl px-3 py-2"
-              >
-                <span className="font-medium">
-                  {calculation.title} <span className="text-muted-foreground font-normal">{calculation.input}</span>
-                </span>
-                <span className="text-muted-foreground text-right tabular-nums">{calculation.duration}</span>
-                <span className="font-mono text-xs">{calculation.output}</span>
-                <span className="text-muted-foreground text-right font-mono text-xs">
-                  {calculation.seed} · {calculation.finishedAt}
-                </span>
-              </li>
-            ))}
-          </ol>
+        {report ? (
+          <AnimatedScrollable.Root className="max-h-96 rounded-xl">
+            <AnimatedScrollable.Viewport className="no-scrollbar">
+              {calculations.length === 0 ? (
+                <p className="text-muted-foreground">Waiting for the first result…</p>
+              ) : null}
+              <AnimatedScrollable.List as="ol" className="flex flex-col gap-2">
+                {calculations.map((calculation) => (
+                  <AnimatedScrollable.Item
+                    key={calculation.id}
+                    className="bg-muted/60 grid grid-cols-[1fr_auto] gap-x-4 gap-y-0.5 rounded-xl px-3 py-2"
+                  >
+                    <span className="font-medium">
+                      {calculation.title} <span className="text-muted-foreground font-normal">{calculation.input}</span>
+                    </span>
+                    <span className="text-muted-foreground text-right tabular-nums">{calculation.duration}</span>
+                    <span className="font-mono text-xs">{calculation.output}</span>
+                    <span className="text-muted-foreground text-right font-mono text-xs">
+                      {calculation.seed} · {calculation.finishedAt}
+                    </span>
+                  </AnimatedScrollable.Item>
+                ))}
+              </AnimatedScrollable.List>
+            </AnimatedScrollable.Viewport>
+          </AnimatedScrollable.Root>
         ) : null}
       </PreferenceCard.Content>
       {statusLabel || errorMessage ? (

@@ -1,5 +1,6 @@
 export * from './ui/animated-container';
 export * from './ui/animated-number';
+export * from './ui/animated-scrollable';
 export * from './ui/badge';
 export * from './ui/button';
 export * from './ui/mobile-sheet';
