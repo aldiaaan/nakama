@@ -1,21 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import type { IpcRequestType, ProfilerKind } from '../resources/daemon';
+import type { IpcRequestType } from '../resources/daemon';
 import { formatApiError } from '../utils/format';
 import { useNakama } from './use-nakama';
 
-export const daemonOverviewQueryKey = ['daemon-overview'] as const;
+export function daemonOverviewQueryKey(name: string) {
+  return ['daemon', name, 'overview'] as const;
+}
 
-const profilerNames: Record<ProfilerKind, string> = {
-  cpu: 'CPU',
-  heap: 'heap',
-};
-
-export function useDaemonOverview() {
+export function useDaemonOverview(name: string) {
   const api = useNakama();
   const query = useQuery({
-    queryKey: daemonOverviewQueryKey,
-    queryFn: () => api.daemon.overview(),
+    queryKey: daemonOverviewQueryKey(name),
+    queryFn: () => api.daemon.overview(name),
     retry: false,
     refetchInterval: 1000,
   });
@@ -23,23 +20,23 @@ export function useDaemonOverview() {
   return {
     ...query,
     errorMessage: formatApiError(query.error),
-    statusLabel: query.isPending ? 'Connecting to the daemon…' : null,
+    statusLabel: query.isPending ? `Connecting to ${name}…` : null,
   };
 }
 
-export function useStartDaemon() {
+export function useStartDaemon(name: string) {
   const api = useNakama();
-  const mutation = useDaemonMutation(() => api.daemon.start());
+  const mutation = useDaemonMutation(name, () => api.daemon.start(name));
   return {
     ...mutation,
     errorMessage: formatApiError(mutation.error),
-    statusLabel: mutation.isPending ? 'Starting the daemon…' : null,
+    statusLabel: mutation.isPending ? `Starting ${name}…` : null,
   };
 }
 
-export function useDaemonIpcRequest() {
+export function useDaemonIpcRequest(name: string) {
   const api = useNakama();
-  const mutation = useDaemonMutation((type: IpcRequestType) => api.daemon.sendIpc(type));
+  const mutation = useDaemonMutation(name, (type: IpcRequestType) => api.daemon.sendIpc(name, type));
   return {
     ...mutation,
     errorMessage: formatApiError(mutation.error),
@@ -47,31 +44,11 @@ export function useDaemonIpcRequest() {
   };
 }
 
-export function useStartProfiler() {
-  const api = useNakama();
-  const mutation = useDaemonMutation((kind: ProfilerKind) => api.daemon.startProfiler(kind));
-  return {
-    ...mutation,
-    errorMessage: formatApiError(mutation.error),
-    statusLabel: mutation.isPending ? `Starting the ${profilerNames[mutation.variables]} profiler…` : null,
-  };
-}
-
-export function useStopProfiler() {
-  const api = useNakama();
-  const mutation = useDaemonMutation((kind: ProfilerKind) => api.daemon.stopProfiler(kind));
-  return {
-    ...mutation,
-    errorMessage: formatApiError(mutation.error),
-    statusLabel: mutation.isPending ? `Writing the ${profilerNames[mutation.variables]} profile…` : null,
-  };
-}
-
-/** Refreshes the overview once the command settles, so the page shows its effect right away. */
-function useDaemonMutation<TVariables, TData>(mutationFn: (variables: TVariables) => Promise<TData>) {
+/** Refreshes the daemon's overview once the command settles, so the page shows its effect right away. */
+function useDaemonMutation<TVariables, TData>(name: string, mutationFn: (variables: TVariables) => Promise<TData>) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn,
-    onSettled: () => queryClient.invalidateQueries({ queryKey: daemonOverviewQueryKey }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: daemonOverviewQueryKey(name) }),
   });
 }

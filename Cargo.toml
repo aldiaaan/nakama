@@ -5,6 +5,7 @@ members = [
     "crates/nakama-agent",
     "crates/nakama-daemon",
     "crates/nakama-device-info",
+    "crates/nakama-example-daemon",
     "crates/nakama-settings",
 ]
 

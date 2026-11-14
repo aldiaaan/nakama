@@ -1,0 +1,6 @@
+{
+  "name": "nakama-example-daemon",
+  "version": "0.0.1",
+  "private": true,
+  "description": "example nakama-daemon that runs heavy calculations on random inputs"
+}

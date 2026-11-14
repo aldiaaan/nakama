@@ -5,11 +5,12 @@ import { Stat } from '../../../shared/components/stat';
 import { StatusBadge } from './status-badge';
 
 export type IpcSectionProps = {
+  name: string;
   ipc: IpcView;
 };
 
-export function IpcSection({ ipc }: IpcSectionProps) {
-  const send = useDaemonIpcRequest();
+export function IpcSection({ name, ipc }: IpcSectionProps) {
+  const send = useDaemonIpcRequest(name);
 
   return (
     <PreferenceCard.Root>

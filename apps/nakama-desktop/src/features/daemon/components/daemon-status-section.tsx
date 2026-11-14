@@ -6,10 +6,12 @@ import { StatusBadge } from './status-badge';
 
 export type DaemonStatusSectionProps = {
   status: DaemonStatusView;
+  /** What the daemon does, shown under its name. */
+  children: React.ReactNode;
 };
 
-export function DaemonStatusSection({ status }: DaemonStatusSectionProps) {
-  const start = useStartDaemon();
+export function DaemonStatusSection({ status, children }: DaemonStatusSectionProps) {
+  const start = useStartDaemon(status.name);
   const footer = status.error ?? start.statusLabel ?? start.errorMessage;
 
   return (
@@ -17,10 +19,7 @@ export function DaemonStatusSection({ status }: DaemonStatusSectionProps) {
       <div className="flex items-start justify-between gap-4">
         <PreferenceCard.Header>
           <PreferenceCard.Title>{status.name}</PreferenceCard.Title>
-          <PreferenceCard.Description>
-            Four subsystems pick a random seed, run a calculation on a worker thread, and rest for 400 ms. About one
-            seed in 40 is rejected, so the daemon restarts that subsystem with backoff.
-          </PreferenceCard.Description>
+          <PreferenceCard.Description>{children}</PreferenceCard.Description>
         </PreferenceCard.Header>
         <div className="flex shrink-0 items-center gap-2">
           <StatusBadge tone={status.tone}>{status.stateLabel}</StatusBadge>

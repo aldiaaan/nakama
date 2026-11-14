@@ -1,0 +1,18 @@
+[package]
+name = "nakama-example-daemon"
+version = "0.0.1"
+description = "example nakama-daemon that runs heavy calculations on random inputs"
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+fastrand = "2"
+nakama-daemon = { path = "../nakama-daemon" }
+serde = { version = "1", features = ["derive"] }
+thiserror = { workspace = true }
+tokio = { version = "1", features = ["rt", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread"] }

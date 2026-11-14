@@ -1,11 +1,12 @@
-import type { CalculationView } from '@nakama/api';
-import { PreferenceCard } from '@nakama/ui/components';
+import { useExampleDaemonReport } from '@nakama/api';
+import { AnimatedNumber, PreferenceCard } from '@nakama/ui/components';
 
-export type CalculationsSectionProps = {
-  calculations: CalculationView[];
-};
+import { Stat } from '../../../shared/components/stat';
 
-export function CalculationsSection({ calculations }: CalculationsSectionProps) {
+export function CalculationsSection() {
+  const { data: report, errorMessage, statusLabel } = useExampleDaemonReport();
+  const calculations = report?.calculations ?? [];
+
   return (
     <PreferenceCard.Root>
       <PreferenceCard.Header>
@@ -14,10 +15,18 @@ export function CalculationsSection({ calculations }: CalculationsSectionProps) 
           The latest results, newest first. A seed reproduces its input.
         </PreferenceCard.Description>
       </PreferenceCard.Header>
-      <PreferenceCard.Content>
-        {calculations.length === 0 ? (
+      <PreferenceCard.Content className="flex flex-col gap-4">
+        {report ? (
+          <dl className="grid grid-cols-3 gap-3">
+            <Stat label="Jobs" value={<AnimatedNumber>{report.jobs}</AnimatedNumber>} />
+            <Stat label="Rejected inputs" value={<AnimatedNumber>{report.rejected}</AnimatedNumber>} />
+            <Stat label="Latest π" value={<AnimatedNumber>{report.piEstimate}</AnimatedNumber>} />
+          </dl>
+        ) : null}
+        {report && calculations.length === 0 ? (
           <p className="text-muted-foreground">Waiting for the first result…</p>
-        ) : (
+        ) : null}
+        {calculations.length > 0 ? (
           <ol className="no-scrollbar flex max-h-96 flex-col gap-2 overflow-y-auto">
             {calculations.map((calculation) => (
               <li
@@ -35,8 +44,14 @@ export function CalculationsSection({ calculations }: CalculationsSectionProps) 
               </li>
             ))}
           </ol>
-        )}
+        ) : null}
       </PreferenceCard.Content>
+      {statusLabel || errorMessage ? (
+        <PreferenceCard.Footer>
+          {statusLabel ? <p className="text-muted-foreground">{statusLabel}</p> : null}
+          {errorMessage ? <PreferenceCard.Error>{errorMessage}</PreferenceCard.Error> : null}
+        </PreferenceCard.Footer>
+      ) : null}
     </PreferenceCard.Root>
   );
 }

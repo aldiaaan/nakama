@@ -1,6 +1,8 @@
 export type CommandError =
   | { type: 'DeviceInfo'; message: string }
   | { type: 'Settings'; message: string }
+  | { type: 'Daemon'; message: string }
+  | { type: 'Profiler'; message: string }
   | { type: 'Notification'; message: string }
   | { type: 'Internal'; message: string };
 

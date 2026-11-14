@@ -5,7 +5,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use nakama_daemon::{Metrics, RestartPolicy, ShutdownHandle, Subsystem};
 use serde::Serialize;
-use tokio::time;
+use tokio::{task, time};
 
 use crate::error::WorkloadError;
 
@@ -14,9 +14,9 @@ const PAUSE: Duration = Duration::from_millis(400);
 /// About one seed in this many is rejected, so the UI shows failures and restarts.
 const REJECT_ONE_IN: u32 = 40;
 
-const JOBS: &str = "workload_jobs_total";
-const REJECTED: &str = "workload_rejected_inputs_total";
-const PI_ESTIMATE: &str = "workload_pi_estimate";
+pub(crate) const JOBS: &str = "workload_jobs_total";
+pub(crate) const REJECTED: &str = "workload_rejected_inputs_total";
+pub(crate) const PI_ESTIMATE: &str = "workload_pi_estimate";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Workload {
@@ -224,7 +224,7 @@ impl Subsystem for Calculator {
             }
 
             let started = Instant::now();
-            let outcome = tauri::async_runtime::spawn_blocking(move || workload.compute(seed))
+            let outcome = task::spawn_blocking(move || workload.compute(seed))
                 .await
                 .map_err(|source| WorkloadError::Join { workload, source })?;
             let duration = started.elapsed();

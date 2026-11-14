@@ -38,14 +38,13 @@ The app keeps its own `QueryClientProvider`. `NakamaProvider` only shares the AP
 
 `api.settings.load()` invokes `load_settings` and returns `SettingsView`. `api.settings.save(theme)` invokes `save_settings` and returns the same view. `useLoadSettings` reads the file once. `useSaveSettings` writes it and updates that query. Both must run under `NakamaProvider`.
 
-The daemon resource talks to the example daemon that the desktop app starts in the background. Each daemon hook must run under `NakamaProvider`.
+The desktop app can run several daemons. The daemon resource works with any of them by name. What only one daemon reports gets its own resource, and the profilers cover the whole app. Each hook below must run under `NakamaProvider`.
 
-- `api.daemon.overview()` invokes `daemon_overview` and returns `DaemonOverviewView`: the daemon state, its subsystems, metrics, an IPC ping, recent calculations, and profilers. `useDaemonOverview` polls it every second.
-- `api.daemon.start()` invokes `daemon_start`.
-- `api.daemon.sendIpc(type)` invokes `daemon_ipc_request` and returns `IpcExchangeView`, the request and response JSON lines.
-- `api.daemon.startProfiler(kind)` invokes `daemon_start_profiler`. `api.daemon.stopProfiler(kind)` invokes `daemon_stop_profiler`.
-- `useStartDaemon`, `useDaemonIpcRequest`, `useStartProfiler`, and `useStopProfiler` wrap those four. Each refreshes the overview once it settles.
+- `api.daemon.overview(name)` invokes `daemon_overview` and returns `DaemonOverviewView`: the daemon state, its subsystems, metrics, and an IPC ping. `useDaemonOverview(name)` polls it every second.
+- `api.daemon.start(name)` invokes `daemon_start`. `api.daemon.sendIpc(name, type)` invokes `daemon_ipc_request` and returns `IpcExchangeView`, the request and response JSON lines. `useStartDaemon(name)` and `useDaemonIpcRequest(name)` wrap them and refresh that daemon's overview once they settle.
+- `api.exampleDaemon.report()` invokes `example_daemon_report` and returns `ExampleDaemonView`: job counts, the latest π estimate, and recent calculations. `useExampleDaemonReport` polls it every second. `exampleDaemonName` is the name to pass to the daemon resource.
 - `api.notification.push({ title, body })` invokes `push_notification` and returns `NotificationView`. The desktop app shows that title and body in the operating system's notification center. `usePushNotification` wraps the call. It must run under `NakamaProvider`.
+- `api.profilers.list()` invokes `profiler_list` and returns `ProfilerView[]`. `useProfilers` polls it every second. `api.profilers.start(kind)` invokes `profiler_start`, and `api.profilers.stop(kind)` invokes `profiler_stop`. `useStartProfiler` and `useStopProfiler` wrap them and refresh the list once they settle.
 
 ## Formatting
 
@@ -69,7 +68,7 @@ Display logic lives here. An app renders the strings and numbers this package al
 - `path` is the `config.ini` path the Rust command already resolved.
 - `useLoadSettings` uses `Reading config.ini…` while the file is loading. `useSaveSettings` uses `Saving config.ini…` while the write is in flight.
 
-`DaemonResource` applies these rules when it formats the overview:
+`DaemonResource`, `ExampleDaemonResource`, and `ProfilersResource` apply these rules:
 
 - A state label is the state with its first letter capitalized. `tone` is `ok` for running, `busy` while starting, stopping, or restarting, `idle` when stopped, and `error` when failed or aborted. The app picks the color for each tone.
 - Uptime renders as `1h 02m 03s`, `2m 05s`, or `12s`, and only while the daemon runs. Otherwise it renders as `—`.

@@ -1,29 +1,34 @@
-import { useStartProfiler, useStopProfiler, type ProfilerView } from '@nakama/api';
+import { useProfilers, useStartProfiler, useStopProfiler, type ProfilerView } from '@nakama/api';
 import { AnimatedNumber, Button, PreferenceCard } from '@nakama/ui/components';
 
 import { Stat } from '../../../shared/components/stat';
 import { StatusBadge } from './status-badge';
 
-export type ProfilersSectionProps = {
-  profilers: ProfilerView[];
-};
+export function ProfilersSection() {
+  const { data: profilers, errorMessage, statusLabel } = useProfilers();
 
-export function ProfilersSection({ profilers }: ProfilersSectionProps) {
   return (
     <PreferenceCard.Root>
       <PreferenceCard.Header>
         <PreferenceCard.Title>Profilers</PreferenceCard.Title>
         <PreferenceCard.Description>
-          Profiles land in the profiles folder under the app data folder.
+          They watch the whole app process, so they cover every daemon at once. Profiles land in the profiles folder
+          under the app data folder.
         </PreferenceCard.Description>
       </PreferenceCard.Header>
       <PreferenceCard.Content>
-        <ul className="flex flex-col gap-3">
-          {profilers.map((profiler) => (
+        <ul className="grid gap-3 lg:grid-cols-2">
+          {profilers?.map((profiler) => (
             <ProfilerItem key={profiler.kind} profiler={profiler} />
           ))}
         </ul>
       </PreferenceCard.Content>
+      {statusLabel || errorMessage ? (
+        <PreferenceCard.Footer>
+          {statusLabel ? <p className="text-muted-foreground">{statusLabel}</p> : null}
+          {errorMessage ? <PreferenceCard.Error>{errorMessage}</PreferenceCard.Error> : null}
+        </PreferenceCard.Footer>
+      ) : null}
     </PreferenceCard.Root>
   );
 }

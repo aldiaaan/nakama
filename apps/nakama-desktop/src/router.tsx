@@ -2,7 +2,7 @@ import { createRouter } from '@tanstack/react-router';
 
 import { routeTree } from './routeTree.gen';
 
-const pageOrder = ['/', '/settings'];
+const pageOrder = ['/', '/daemon', '/settings'];
 
 export const router = createRouter({
   routeTree,

@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(all(feature = "profiling", unix))]
@@ -9,8 +10,9 @@ use nakama_daemon::CpuProfiler;
 use nakama_daemon::HeapProfiler;
 use nakama_daemon::{DaemonError, HeapUsage};
 use serde::{Deserialize, Serialize};
+use tauri::async_runtime;
 
-use crate::error::DaemonControlError;
+use crate::error::ProfilerError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,10 +43,16 @@ pub struct ProfilerReport {
 }
 
 /// Writes the profile once the profiler is out of the lock.
-pub type FinishProfile = Box<dyn FnOnce() -> Result<PathBuf, DaemonError> + Send>;
+type FinishProfile = Box<dyn FnOnce() -> Result<PathBuf, DaemonError> + Send>;
+
+/// The CPU and heap profilers. Both see the whole app process, so they cover every daemon at once.
+pub struct Profilers {
+    dir: PathBuf,
+    recorders: Mutex<Recorders>,
+}
 
 #[derive(Default)]
-pub struct Profilers {
+struct Recorders {
     #[cfg(all(feature = "profiling", unix))]
     cpu: Option<Running<CpuProfiler>>,
     #[cfg(feature = "heap-profiling")]
@@ -92,12 +100,46 @@ impl fmt::Display for ProfilerKind {
 }
 
 impl Profilers {
-    pub fn start(&mut self, kind: ProfilerKind, dir: &Path) -> Result<(), DaemonControlError> {
+    /// Profiles are written into `dir`, which is created on the first start.
+    pub fn new(dir: PathBuf) -> Self {
+        Self {
+            dir,
+            recorders: Mutex::new(Recorders::default()),
+        }
+    }
+
+    pub fn start(&self, kind: ProfilerKind) -> Result<(), ProfilerError> {
+        self.lock().start(kind, &self.dir)
+    }
+
+    /// Stops a profiler and writes its profile off the async runtime.
+    pub async fn stop(&self, kind: ProfilerKind) -> Result<(), ProfilerError> {
+        let finish = self.lock().stop(kind)?;
+        let path = async_runtime::spawn_blocking(finish)
+            .await
+            .map_err(ProfilerError::Join)??;
+        self.lock().finished(kind, path);
+        Ok(())
+    }
+
+    pub fn reports(&self) -> Vec<ProfilerReport> {
+        self.lock().reports()
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Recorders> {
+        self.recorders
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl Recorders {
+    fn start(&mut self, kind: ProfilerKind, dir: &Path) -> Result<(), ProfilerError> {
         if kind.availability() != Availability::Available {
-            return Err(DaemonControlError::ProfilerUnavailable(kind));
+            return Err(ProfilerError::Unavailable(kind));
         }
         if self.is_running(kind) {
-            return Err(DaemonControlError::ProfilerRunning(kind));
+            return Err(ProfilerError::Running(kind));
         }
         let path = profile_path(dir, kind)?;
         match kind {
@@ -106,25 +148,25 @@ impl Profilers {
         }
     }
 
-    pub fn stop(&mut self, kind: ProfilerKind) -> Result<FinishProfile, DaemonControlError> {
+    fn stop(&mut self, kind: ProfilerKind) -> Result<FinishProfile, ProfilerError> {
         if kind.availability() != Availability::Available {
-            return Err(DaemonControlError::ProfilerUnavailable(kind));
+            return Err(ProfilerError::Unavailable(kind));
         }
         match kind {
             ProfilerKind::Cpu => self.stop_cpu(),
             ProfilerKind::Heap => self.stop_heap(),
         }
-        .ok_or(DaemonControlError::ProfilerIdle(kind))
+        .ok_or(ProfilerError::Idle(kind))
     }
 
-    pub fn finished(&mut self, kind: ProfilerKind, path: PathBuf) {
+    fn finished(&mut self, kind: ProfilerKind, path: PathBuf) {
         match kind {
             ProfilerKind::Cpu => self.last_cpu = Some(path),
             ProfilerKind::Heap => self.last_heap = Some(path),
         }
     }
 
-    pub fn reports(&self) -> Vec<ProfilerReport> {
+    fn reports(&self) -> Vec<ProfilerReport> {
         vec![
             self.report(ProfilerKind::Cpu),
             self.report(ProfilerKind::Heap),
@@ -167,7 +209,7 @@ impl Profilers {
     }
 
     #[cfg(all(feature = "profiling", unix))]
-    fn start_cpu(&mut self, path: PathBuf) -> Result<(), DaemonControlError> {
+    fn start_cpu(&mut self, path: PathBuf) -> Result<(), ProfilerError> {
         self.cpu = Some(Running {
             profiler: CpuProfiler::start()?,
             path,
@@ -177,8 +219,8 @@ impl Profilers {
     }
 
     #[cfg(not(all(feature = "profiling", unix)))]
-    fn start_cpu(&mut self, _path: PathBuf) -> Result<(), DaemonControlError> {
-        Err(DaemonControlError::ProfilerUnavailable(ProfilerKind::Cpu))
+    fn start_cpu(&mut self, _path: PathBuf) -> Result<(), ProfilerError> {
+        Err(ProfilerError::Unavailable(ProfilerKind::Cpu))
     }
 
     #[cfg(all(feature = "profiling", unix))]
@@ -196,7 +238,7 @@ impl Profilers {
     }
 
     #[cfg(feature = "heap-profiling")]
-    fn start_heap(&mut self, path: PathBuf) -> Result<(), DaemonControlError> {
+    fn start_heap(&mut self, path: PathBuf) -> Result<(), ProfilerError> {
         self.heap = Some(Running {
             profiler: HeapProfiler::start(&path)?,
             path,
@@ -206,8 +248,8 @@ impl Profilers {
     }
 
     #[cfg(not(feature = "heap-profiling"))]
-    fn start_heap(&mut self, _path: PathBuf) -> Result<(), DaemonControlError> {
-        Err(DaemonControlError::ProfilerUnavailable(ProfilerKind::Heap))
+    fn start_heap(&mut self, _path: PathBuf) -> Result<(), ProfilerError> {
+        Err(ProfilerError::Unavailable(ProfilerKind::Heap))
     }
 
     #[cfg(feature = "heap-profiling")]
@@ -236,8 +278,8 @@ impl Profilers {
     }
 }
 
-fn profile_path(dir: &Path, kind: ProfilerKind) -> Result<PathBuf, DaemonControlError> {
-    fs::create_dir_all(dir).map_err(|source| DaemonControlError::ProfilesFolder {
+fn profile_path(dir: &Path, kind: ProfilerKind) -> Result<PathBuf, ProfilerError> {
+    fs::create_dir_all(dir).map_err(|source| ProfilerError::ProfilesFolder {
         path: dir.to_owned(),
         source,
     })?;
@@ -249,4 +291,45 @@ fn profile_path(dir: &Path, kind: ProfilerKind) -> Result<PathBuf, DaemonControl
         ProfilerKind::Heap => "heap",
     };
     Ok(dir.join(format!("{name}-{stamp}.{}", kind.extension())))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProfilerKind, Profilers};
+    use crate::error::ProfilerError;
+
+    #[cfg(feature = "heap-profiling")]
+    #[test]
+    fn writes_a_heap_profile() {
+        let dir = std::env::temp_dir().join(format!("nakama-desktop-heap-{}", std::process::id()));
+        let profilers = Profilers::new(dir.clone());
+        profilers
+            .start(ProfilerKind::Heap)
+            .expect("start heap profiler");
+        assert!(matches!(
+            profilers.start(ProfilerKind::Heap),
+            Err(ProfilerError::Running(ProfilerKind::Heap))
+        ));
+        tauri::async_runtime::block_on(profilers.stop(ProfilerKind::Heap))
+            .expect("stop heap profiler");
+
+        let reports = profilers.reports();
+        let profile = reports[1].last_profile.as_deref().expect("profile path");
+        assert!(std::path::Path::new(profile).is_file());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(not(all(feature = "profiling", unix)))]
+    #[test]
+    fn reports_a_missing_cpu_profiler() {
+        let profilers = Profilers::new(std::env::temp_dir());
+        assert!(matches!(
+            profilers.start(ProfilerKind::Cpu),
+            Err(ProfilerError::Unavailable(ProfilerKind::Cpu))
+        ));
+        assert!(matches!(
+            tauri::async_runtime::block_on(profilers.stop(ProfilerKind::Cpu)),
+            Err(ProfilerError::Unavailable(ProfilerKind::Cpu))
+        ));
+    }
 }

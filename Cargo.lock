@@ -2270,9 +2270,9 @@ name = "nakama-desktop"
 version = "0.0.1"
 dependencies = [
  "anyhow",
- "fastrand",
  "nakama-daemon",
  "nakama-device-info",
+ "nakama-example-daemon",
  "nakama-settings",
  "serde",
  "serde_json",
@@ -2291,6 +2291,17 @@ dependencies = [
  "serde",
  "sysinfo",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "nakama-example-daemon"
+version = "0.0.1"
+dependencies = [
+ "fastrand",
+ "nakama-daemon",
+ "serde",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

@@ -1,7 +1,5 @@
 import type { MetricsView } from '@nakama/api';
-import { AnimatedNumber, PreferenceCard } from '@nakama/ui/components';
-
-import { Stat } from '../../../shared/components/stat';
+import { PreferenceCard } from '@nakama/ui/components';
 
 export type MetricsSectionProps = {
   metrics: MetricsView;
@@ -17,13 +15,6 @@ export function MetricsSection({ metrics }: MetricsSectionProps) {
         </PreferenceCard.Description>
       </PreferenceCard.Header>
       <PreferenceCard.Content className="flex flex-col gap-6">
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Jobs" value={<AnimatedNumber>{metrics.jobs}</AnimatedNumber>} />
-          <Stat label="Rejected inputs" value={<AnimatedNumber>{metrics.rejected}</AnimatedNumber>} />
-          <Stat label="Restarts" value={<AnimatedNumber>{metrics.restarts}</AnimatedNumber>} />
-          <Stat label="Latest π" value={<AnimatedNumber>{metrics.piEstimate}</AnimatedNumber>} />
-        </dl>
-
         <div className="grid gap-6 md:grid-cols-2">
           <MetricTable title="Counters" rows={metrics.counters} />
           <MetricTable title="Gauges" rows={metrics.gauges} />
