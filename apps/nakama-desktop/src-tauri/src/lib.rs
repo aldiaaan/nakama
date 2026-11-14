@@ -153,6 +153,24 @@ fn show_notification(
     Ok(())
 }
 
+/// Match the borderless window edge to the saved appearance before the webview paints.
+fn apply_saved_window_theme(app: &tauri::App) -> tauri::Result<()> {
+    let Some(window) = app.get_webview_window("main") else {
+        return Ok(());
+    };
+    let Ok(dir) = app.path().app_config_dir() else {
+        return Ok(());
+    };
+    let Ok(settings) = nakama_settings::load(&dir) else {
+        return Ok(());
+    };
+    let theme = match settings.theme {
+        Theme::Dark => tauri::Theme::Dark,
+        Theme::Light => tauri::Theme::Light,
+    };
+    window.set_theme(Some(theme))
+}
+
 fn app_config_dir(app: &tauri::AppHandle) -> Result<PathBuf, CommandError> {
     app.path()
         .app_config_dir()
@@ -174,6 +192,7 @@ pub fn run() -> tauri::Result<()> {
             app.manage(daemons);
             app.manage(example);
             app.manage(Profilers::new(app.path().app_data_dir()?.join("profiles")));
+            apply_saved_window_theme(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -1,4 +1,6 @@
 import { useLoadSettings, type SettingsTheme } from '@nakama/api';
+import { isTauri } from '@tauri-apps/api/core';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { createContext, useEffect, useRef, useState } from 'react';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 
@@ -35,7 +37,11 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
   useEffect(() => {
     const apply = () => {
-      document.documentElement.classList.toggle('dark', store.getState().theme === 'dark');
+      const theme = store.getState().theme;
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+      if (isTauri() && hydrated.current) {
+        void getCurrentWindow().setTheme(theme);
+      }
     };
     apply();
     return store.subscribe(apply);
