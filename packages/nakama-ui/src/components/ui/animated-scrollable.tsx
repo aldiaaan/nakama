@@ -1,7 +1,15 @@
 'use client';
 
+import { IconArrowUp } from '@tabler/icons-react';
 import { cn } from 'cn';
-import { AnimatePresence, MotionConfig, motion, type HTMLMotionProps, type Transition } from 'motion/react';
+import {
+  AnimatePresence,
+  MotionConfig,
+  motion,
+  useReducedMotion,
+  type HTMLMotionProps,
+  type Transition,
+} from 'motion/react';
 import {
   createContext,
   useCallback,
@@ -12,23 +20,33 @@ import {
   type ComponentProps,
   type ComponentPropsWithoutRef,
   type ReactNode,
+  type RefObject,
 } from 'react';
 
+import { Button } from './button';
+
 const itemTransition: Transition = { type: 'spring', duration: 0.4, bounce: 0.1 };
+const scrollToTopTransition: Transition = { type: 'spring', duration: 0.3, bounce: 0.25 };
 
 type ScrollEdges = {
   scrolled: boolean;
   atBottom: boolean;
 };
 
-const AnimatedScrollableContext = createContext<((edges: ScrollEdges) => void) | null>(null);
+type AnimatedScrollableContextValue = {
+  edges: ScrollEdges;
+  setEdges: (edges: ScrollEdges) => void;
+  viewportRef: RefObject<HTMLDivElement | null>;
+};
+
+const AnimatedScrollableContext = createContext<AnimatedScrollableContextValue | null>(null);
 
 function useAnimatedScrollableContext() {
-  const setEdges = useContext(AnimatedScrollableContext);
-  if (!setEdges) {
+  const context = useContext(AnimatedScrollableContext);
+  if (!context) {
     throw new Error('AnimatedScrollable parts must be used within AnimatedScrollable.Root.');
   }
-  return setEdges;
+  return context;
 }
 
 export type AnimatedScrollableRootProps = ComponentProps<'div'> & {
@@ -44,12 +62,13 @@ function AnimatedScrollableRoot({
   ...props
 }: AnimatedScrollableRootProps) {
   const [edges, setEdges] = useState<ScrollEdges>({ scrolled: false, atBottom: true });
+  const viewportRef = useRef<HTMLDivElement>(null);
   const updateEdges = useCallback((next: ScrollEdges) => {
     setEdges((current) => (current.scrolled === next.scrolled && current.atBottom === next.atBottom ? current : next));
   }, []);
 
   return (
-    <AnimatedScrollableContext.Provider value={updateEdges}>
+    <AnimatedScrollableContext.Provider value={{ edges, setEdges: updateEdges, viewportRef }}>
       <div
         data-slot="animated-scrollable"
         className={cn('relative flex min-h-0 flex-col overflow-hidden rounded-[inherit]', className)}
@@ -80,8 +99,7 @@ function AnimatedScrollableRoot({
 export type AnimatedScrollableViewportProps = HTMLMotionProps<'div'>;
 
 function AnimatedScrollableViewport({ className, children, onScroll, ...props }: AnimatedScrollableViewportProps) {
-  const setEdges = useAnimatedScrollableContext();
-  const viewportRef = useRef<HTMLDivElement>(null);
+  const { setEdges, viewportRef } = useAnimatedScrollableContext();
   const contentRef = useRef<HTMLDivElement>(null);
 
   const measure = useCallback(() => {
@@ -93,7 +111,7 @@ function AnimatedScrollableViewport({ className, children, onScroll, ...props }:
       scrolled: viewport.scrollTop > 0,
       atBottom: viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 1,
     });
-  }, [setEdges]);
+  }, [setEdges, viewportRef]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -108,7 +126,7 @@ function AnimatedScrollableViewport({ className, children, onScroll, ...props }:
     observer.observe(viewport);
     observer.observe(content);
     return () => observer.disconnect();
-  }, [measure]);
+  }, [measure, viewportRef]);
 
   return (
     <motion.div
@@ -162,9 +180,60 @@ function AnimatedScrollableItem({ className, ...props }: AnimatedScrollableItemP
   );
 }
 
+export type AnimatedScrollableScrollToTopProps = ComponentProps<typeof Button>;
+
+function AnimatedScrollableScrollToTop({
+  className,
+  children,
+  onClick,
+  variant = 'outline',
+  size = 'icon-sm',
+  ...props
+}: AnimatedScrollableScrollToTopProps) {
+  const { edges, viewportRef } = useAnimatedScrollableContext();
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <MotionConfig reducedMotion="user">
+      <AnimatePresence initial={false}>
+        {edges.scrolled ? (
+          <motion.div
+            key="scroll-to-top"
+            className="absolute right-3 bottom-3 z-20"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            transition={scrollToTopTransition}
+          >
+            <Button
+              data-slot="animated-scrollable-scroll-to-top"
+              variant={variant}
+              size={size}
+              className={cn('rounded-full bg-background shadow-md hover:bg-muted', className)}
+              onClick={(event) => {
+                viewportRef.current?.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+                onClick?.(event);
+              }}
+              {...props}
+            >
+              {children ?? (
+                <>
+                  <IconArrowUp />
+                  <span className="sr-only">Scroll to top</span>
+                </>
+              )}
+            </Button>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </MotionConfig>
+  );
+}
+
 export const AnimatedScrollable = {
   Root: AnimatedScrollableRoot,
   Viewport: AnimatedScrollableViewport,
   List: AnimatedScrollableList,
   Item: AnimatedScrollableItem,
+  ScrollToTop: AnimatedScrollableScrollToTop,
 };

@@ -47,6 +47,7 @@ export function CalculationsSection() {
                 ))}
               </AnimatedScrollable.List>
             </AnimatedScrollable.Viewport>
+            <AnimatedScrollable.ScrollToTop />
           </AnimatedScrollable.Root>
         ) : null}
       </PreferenceCard.Content>
