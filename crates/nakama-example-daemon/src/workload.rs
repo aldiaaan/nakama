@@ -9,7 +9,7 @@ use tokio::{task, time};
 
 use crate::error::WorkloadError;
 
-const HISTORY: usize = 24;
+const HISTORY: usize = 200;
 const PAUSE: Duration = Duration::from_millis(400);
 /// About one seed in this many is rejected, so the UI shows failures and restarts.
 const REJECT_ONE_IN: u32 = 40;

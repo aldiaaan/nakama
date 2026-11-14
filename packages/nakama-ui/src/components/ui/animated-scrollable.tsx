@@ -37,6 +37,7 @@ type AnimatedScrollableContextValue = {
   edges: ScrollEdges;
   setEdges: (edges: ScrollEdges) => void;
   viewportRef: RefObject<HTMLDivElement | null>;
+  scrollingToTopRef: RefObject<boolean>;
 };
 
 const AnimatedScrollableContext = createContext<AnimatedScrollableContextValue | null>(null);
@@ -63,12 +64,13 @@ function AnimatedScrollableRoot({
 }: AnimatedScrollableRootProps) {
   const [edges, setEdges] = useState<ScrollEdges>({ scrolled: false, atBottom: true });
   const viewportRef = useRef<HTMLDivElement>(null);
+  const scrollingToTopRef = useRef(false);
   const updateEdges = useCallback((next: ScrollEdges) => {
     setEdges((current) => (current.scrolled === next.scrolled && current.atBottom === next.atBottom ? current : next));
   }, []);
 
   return (
-    <AnimatedScrollableContext.Provider value={{ edges, setEdges: updateEdges, viewportRef }}>
+    <AnimatedScrollableContext.Provider value={{ edges, setEdges: updateEdges, viewportRef, scrollingToTopRef }}>
       <div
         data-slot="animated-scrollable"
         className={cn('relative flex min-h-0 flex-col overflow-hidden rounded-[inherit]', className)}
@@ -99,19 +101,25 @@ function AnimatedScrollableRoot({
 export type AnimatedScrollableViewportProps = HTMLMotionProps<'div'>;
 
 function AnimatedScrollableViewport({ className, children, onScroll, ...props }: AnimatedScrollableViewportProps) {
-  const { setEdges, viewportRef } = useAnimatedScrollableContext();
+  const { setEdges, viewportRef, scrollingToTopRef } = useAnimatedScrollableContext();
   const contentRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<ScrollAnchor | null>(null);
 
   const measure = useCallback(() => {
     const viewport = viewportRef.current;
-    if (!viewport) {
+    const content = contentRef.current;
+    if (!viewport || !content) {
       return;
     }
+    if (viewport.scrollTop <= 0) {
+      scrollingToTopRef.current = false;
+    }
+    anchorRef.current = findAnchor(viewport, content);
     setEdges({
       scrolled: viewport.scrollTop > 0,
       atBottom: viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 1,
     });
-  }, [setEdges, viewportRef]);
+  }, [scrollingToTopRef, setEdges, viewportRef]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -120,29 +128,91 @@ function AnimatedScrollableViewport({ className, children, onScroll, ...props }:
       return undefined;
     }
 
+    // Keeps the item being read in place when content above it changes. At the top, new items push the list down.
+    // Correcting during a smooth scroll to the top would cancel it short of the top.
+    const keepAnchor = () => {
+      const anchor = anchorRef.current;
+      if (!scrollingToTopRef.current && anchor?.element.isConnected && viewport.scrollTop > 0) {
+        const delta = offsetTopWithin(anchor.element, content) - anchor.top;
+        if (delta !== 0) {
+          viewport.scrollTop += delta;
+        }
+      }
+      measure();
+    };
+
     measure();
     // Content grows past the viewport without resizing it, so both sizes are watched.
-    const observer = new ResizeObserver(measure);
-    observer.observe(viewport);
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, [measure, viewportRef]);
+    const resizeObserver = new ResizeObserver(keepAnchor);
+    resizeObserver.observe(viewport);
+    resizeObserver.observe(content);
+    // Adding one item while another exits can leave the height unchanged, so insertions are watched too.
+    const mutationObserver = new MutationObserver(keepAnchor);
+    mutationObserver.observe(content, { childList: true, subtree: true });
+    // Scrolling by hand takes over from the button, so the reader's spot is held again.
+    const interrupt = () => {
+      scrollingToTopRef.current = false;
+    };
+    const interruptEvents = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
+    for (const type of interruptEvents) {
+      viewport.addEventListener(type, interrupt, { passive: true });
+    }
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      for (const type of interruptEvents) {
+        viewport.removeEventListener(type, interrupt);
+      }
+    };
+  }, [measure, scrollingToTopRef, viewportRef]);
 
   return (
     <motion.div
       ref={viewportRef}
       data-slot="animated-scrollable-viewport"
       layoutScroll
-      className={cn('min-h-0 flex-auto overflow-y-auto overscroll-contain', className)}
+      className={cn('min-h-0 flex-auto overflow-y-auto overscroll-contain [overflow-anchor:none]', className)}
       onScroll={(event) => {
         measure();
         onScroll?.(event);
       }}
       {...props}
     >
-      <div ref={contentRef}>{children as ReactNode}</div>
+      <div ref={contentRef} className="relative">
+        {children as ReactNode}
+      </div>
     </motion.div>
   );
+}
+
+type ScrollAnchor = {
+  element: HTMLElement;
+  top: number;
+};
+
+function findAnchor(viewport: HTMLElement, content: HTMLElement): ScrollAnchor | null {
+  const scrollTop = viewport.scrollTop;
+  if (scrollTop <= 0) {
+    return null;
+  }
+  for (const element of content.querySelectorAll<HTMLElement>('[data-slot="animated-scrollable-item"]')) {
+    const top = offsetTopWithin(element, content);
+    if (top + element.offsetHeight > scrollTop) {
+      return { element, top };
+    }
+  }
+  return null;
+}
+
+// offsetTop ignores transforms, so an item mid-animation still reports where it sits in the layout.
+function offsetTopWithin(element: HTMLElement, container: HTMLElement) {
+  let top = 0;
+  let node: HTMLElement | null = element;
+  while (node && node !== container) {
+    top += node.offsetTop;
+    node = node.offsetParent instanceof HTMLElement ? node.offsetParent : null;
+  }
+  return top;
 }
 
 export type AnimatedScrollableListProps = ComponentPropsWithoutRef<'ul'> & {
@@ -166,10 +236,13 @@ function AnimatedScrollableList({ as = 'ul', className, children, ...props }: An
 export type AnimatedScrollableItemProps = HTMLMotionProps<'li'>;
 
 function AnimatedScrollableItem({ className, ...props }: AnimatedScrollableItemProps) {
+  const { edges } = useAnimatedScrollableContext();
+
   return (
     <motion.li
       data-slot="animated-scrollable-item"
-      layout
+      // Sliding items into place would fight the scroll correction that holds the reader's spot.
+      layout={!edges.scrolled}
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
@@ -190,7 +263,7 @@ function AnimatedScrollableScrollToTop({
   size = 'icon-sm',
   ...props
 }: AnimatedScrollableScrollToTopProps) {
-  const { edges, viewportRef } = useAnimatedScrollableContext();
+  const { edges, viewportRef, scrollingToTopRef } = useAnimatedScrollableContext();
   const reduceMotion = useReducedMotion();
 
   return (
@@ -211,6 +284,7 @@ function AnimatedScrollableScrollToTop({
               size={size}
               className={cn('rounded-full bg-background shadow-md hover:bg-muted', className)}
               onClick={(event) => {
+                scrollingToTopRef.current = true;
                 viewportRef.current?.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
                 onClick?.(event);
               }}
